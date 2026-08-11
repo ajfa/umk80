@@ -60,7 +60,13 @@ void umk_poke(umk_machine_t *m, uint16_t addr, uint8_t val)
 {
     bool is_rom; uint16_t idx;
     if (!decode(m, addr, &is_rom, &idx)) return;
-    if (!is_rom) m->ram[idx] = val;
+    if (is_rom) return;
+    if (m->trial && m->trial_n < (uint8_t)(sizeof m->trial_idx / sizeof m->trial_idx[0])) {
+        m->trial_idx[m->trial_n] = idx;
+        m->trial_old[m->trial_n] = m->ram[idx];
+        m->trial_n++;
+    }
+    m->ram[idx] = val;
 }
 
 /* --- indicadores: integración con persistencia ----------------------------
@@ -437,18 +443,66 @@ unsigned umk_step_instruction(umk_machine_t *m)
     return c;
 }
 
+/* Ejecuta la instrucción en curso «en seco» para conocer su secuencia de
+ * ciclos de máquina, y lo deshace todo. Al terminar, la máquina está
+ * exactamente como estaba. */
+static void step_probe(umk_machine_t *m)
+{
+    i8080_t       cpu_save  = m->cpu;
+    umk_ppi_t     ppi_save  = m->ppi;
+    umk_display_t disp_save = m->display;
+    umk_panel_t   pan_save  = m->panel;
+    uint64_t      sc_save   = m->step_start_cycles;
+    uint32_t      io_save   = m->unmapped_io_writes;
+    uint8_t       dbg_save  = m->step.dbg_port;
+    unsigned i;
+
+    m->trial = true;
+    m->trial_n = 0u;
+
+    exec_one(m);
+
+    m->step.mc_total = m->cpu.mc_count;
+    for (i = 0; i < m->cpu.mc_count && i < 6u; i++) {
+        m->step.mc_status[i] = m->cpu.mc_status[i];
+        m->step.mc_addr[i]   = m->cpu.mc_addr[i];
+        m->step.mc_data[i]   = m->cpu.mc_data[i];
+    }
+
+    /* deshacer, en orden inverso por si una dirección se escribió dos veces */
+    i = m->trial_n;
+    while (i-- > 0u) m->ram[m->trial_idx[i]] = m->trial_old[i];
+    m->trial = false;
+    m->trial_n = 0u;
+
+    m->cpu               = cpu_save;
+    m->ppi               = ppi_save;
+    m->display           = disp_save;
+    m->panel             = pan_save;
+    m->step_start_cycles = sc_save;
+    m->unmapped_io_writes = io_save;
+    m->step.dbg_port     = dbg_save;
+}
+
 bool umk_step_machine_cycle(umk_machine_t *m)
 {
-    bool last;
+    if (m->step.mc_index == 0u) step_probe(m);
 
-    if (m->step.mc_index == 0u) exec_one(m);
+    if (m->step.mc_index + 1u >= m->step.mc_total) {
+        /* último ciclo de máquina: aquí es donde la instrucción surte efecto */
+        exec_one(m);
+        panel_update(m);
+        m->step.mc_index = 0u;
+        return true;
+    }
 
-    panel_show_mc(m, m->step.mc_index);
+    /* ciclo intermedio: sólo se refresca el panel con lo que el bus llevaba
+     * en ese ciclo */
+    m->panel.address = m->step.mc_addr[m->step.mc_index];
+    m->panel.data    = m->step.mc_data[m->step.mc_index];
+    m->panel.status  = m->step.mc_status[m->step.mc_index];
     m->step.mc_index++;
-
-    last = (m->step.mc_index >= m->cpu.mc_count);
-    if (last) m->step.mc_index = 0u;
-    return last;
+    return false;
 }
 
 uint64_t umk_run_cycles(umk_machine_t *m, uint64_t cycles)

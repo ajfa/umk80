@@ -58,14 +58,19 @@ static void place(unsigned addr, unsigned char val, unsigned lineno)
 
 int main(int argc, char **argv)
 {
-    FILE *in, *out;
+    FILE *in, *out, *asmf = NULL;
     char line[512];
     unsigned lineno = 0, total = 0;
     unsigned i, run_start;
-    int in_gap;
+    int in_gap, a;
+    const char *asmpath = NULL;
 
-    if (argc != 3) {
-        fprintf(stderr, "uso: %s <monitor.lst> <monitor.bin>\n", argv[0]);
+    for (a = 3; a < argc; a++)
+        if (strcmp(argv[a], "--asm") == 0 && a + 1 < argc) asmpath = argv[++a];
+
+    if (argc < 3) {
+        fprintf(stderr, "uso: %s <monitor.lst> <monitor.bin> [--asm <monitor.asm>]\n",
+                argv[0]);
         return 2;
     }
 
@@ -73,6 +78,15 @@ int main(int argc, char **argv)
 
     in = fopen(argv[1], "rb");
     if (!in) { perror(argv[1]); return 2; }
+
+    if (asmpath) {
+        asmf = fopen(asmpath, "wb");
+        if (!asmf) { perror(asmpath); return 2; }
+        fprintf(asmf, "; Fuente del monitor del УМК-80, extraído de rom/monitor.lst.\n"
+                      "; NO EDITAR: se regenera con  umkrom rom/monitor.lst ... --asm\n"
+                      "; Original: Р.Р.00004-01 12 01-1, «Системный монитор. Текст\n"
+                      "; программы», 1986, литера О1, ISIS-II 8080/8085 MACRO ASSEMBLER.\n\n");
+    }
 
     while (fgets(line, sizeof line, in)) {
         char *bar, *p, *loc_tok, *obj_tok;
@@ -84,6 +98,15 @@ int main(int argc, char **argv)
 
         bar = strchr(line, '|');
         if (!bar) continue;
+
+        if (asmf) {                       /* la columna de fuente, tal cual */
+            char *srctext = bar + 1;
+            char *e = srctext + strlen(srctext);
+            while (e > srctext && (e[-1] == '\n' || e[-1] == '\r')) e--;
+            *e = '\0';
+            fprintf(asmf, "%s\n", srctext);
+        }
+
         *bar = '\0';                      /* nos quedamos con LOC y OBJ */
 
         p = line;
@@ -123,6 +146,7 @@ int main(int argc, char **argv)
         }
     }
     fclose(in);
+    if (asmf) { fclose(asmf); printf("%s escrito\n", asmpath); }
 
     /* Informe de cobertura */
     printf("bytes colocados: %u\n", total);

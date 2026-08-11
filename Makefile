@@ -31,8 +31,9 @@ CORE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CORE_SRC))
 .PHONY: all test test-exm clean
 
 all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE) \
-     $(BUILD)/umkrom$(EXE) $(BUILD)/criterio2$(EXE) rom/monitor.bin \
-     $(BUILD)/umk80$(EXE)
+     $(BUILD)/umkrom$(EXE) $(BUILD)/umkasm$(EXE) $(BUILD)/umkdis$(EXE) \
+     $(BUILD)/criterio2$(EXE) $(BUILD)/criterio4$(EXE) \
+     rom/monitor.bin $(BUILD)/umk80$(EXE)
 
 # El frontend hace aritmética de píxeles a mansalva; -Wconversion ahí sólo
 # genera ruido. El núcleo sí se compila con él.
@@ -71,17 +72,37 @@ $(BUILD)/umkrom$(EXE): tools/umkrom.c
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CSTD) $(WARN) $(OPT) $< -o $@
 
-rom/monitor.bin: rom/monitor.lst $(BUILD)/umkrom$(EXE)
-	$(BUILD)/umkrom$(EXE) rom/monitor.lst rom/monitor.bin
+$(BUILD)/umkasm$(EXE): tools/umkasm.c
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CSTD) $(WARN) $(OPT) $< -o $@
+
+$(BUILD)/umkdis$(EXE): tools/umkdis.c $(BUILD)/core/src/i8080.o
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CSTD) $(WARN) $(OPT) -Icore/include $< $(BUILD)/core/src/i8080.o -o $@
+
+# Vía 1: la imagen sale de la columna OBJ del listado. De paso se extrae el
+# fuente, para que las dos vías partan del mismo fichero y no se desincronicen.
+rom/monitor.bin rom/monitor.asm: rom/monitor.lst $(BUILD)/umkrom$(EXE)
+	$(BUILD)/umkrom$(EXE) rom/monitor.lst rom/monitor.bin --asm rom/monitor.asm
 
 $(BUILD)/criterio2$(EXE): tests/monitor/criterio2.c $(CORE_OBJ)
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CFLAGS) $^ -o $@
 
-test: all
+$(BUILD)/criterio4$(EXE): tests/step/criterio4.c $(CORE_OBJ)
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CFLAGS) $^ -o $@
+
+# Vía 2: reensamblar el fuente y exigir igualdad byte a byte (PLAN.md §4).
+.PHONY: verify-rom
+verify-rom: rom/monitor.asm rom/monitor.bin $(BUILD)/umkasm$(EXE)
+	$(BUILD)/umkasm$(EXE) rom/monitor.asm $(BUILD)/monitor_asm.bin --verify rom/monitor.bin
+
+test: all verify-rom
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites --quick
 	$(BUILD)/ghosting$(EXE)
 	$(BUILD)/criterio2$(EXE) rom/monitor.bin
+	$(BUILD)/criterio4$(EXE)
 
 test-exm: $(BUILD)/cpu_suite$(EXE)
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites

@@ -108,21 +108,32 @@ typedef struct {
  * РБ/ШГ (S3) y КМ/ЦК (S4) son conmutadores CON ENCLAVAMIENTO: quedan
  * pulsados (ПС p. 28). ШГ (S2), СБ (S1) y ПР (S5) son pulsadores.
  *
- * Nota de modelado: con КМ/ЦК enclavado se avanza un ciclo de máquina por
- * pulsación. La instrucción se ejecuta internamente entera al llegar a su
- * último ciclo de máquina, y los ciclos anteriores sólo actualizan el panel
- * de LEDs. En la máquina real la CPU se congela por READY entre ciclos,
- * pero lo único observable en ese estado es precisamente el panel: el
- * display de siete segmentos no se refresca porque el monitor no corre, y
- * la memoria no se puede inspeccionar sin salir del modo. Ver
- * DESCONOCIDOS.md §7.
+ * Cómo se modela el paso por ciclo de máquina: en la primera pulsación se
+ * ejecuta la instrucción «en seco» para averiguar su secuencia de ciclos y
+ * acto seguido se deshace por completo (registros, ОЗУ, ВВ55 e indicadores).
+ * Las pulsaciones siguientes van mostrando en el panel cada ciclo de la
+ * secuencia, y sólo al pisar el ÚLTIMO se ejecuta de verdad. Así el estado
+ * de la máquina cambia exactamente cuando cambia en el equipo real, donde la
+ * CPU está congelada por READY entre ciclo y ciclo.
+ *
+ * Lo que sigue sin ser fiel al detalle: dentro de una instrucción con varias
+ * escrituras (CALL, PUSH) todas caen juntas en el último ciclo en vez de
+ * cada una en el suyo. No es observable desde el panel, que es lo único que
+ * la máquina enseña en este modo. Ver DESCONOCIDOS.md §7.
  */
 typedef struct {
     bool    latch_step;      /* РБ/ШГ enclavado: modo paso a paso activo */
     bool    latch_cycle;     /* КМ/ЦК enclavado: el paso es por ciclo    */
     bool    waiting;         /* la CPU está detenida esperando ШГ        */
     uint8_t dbg_port;        /* último valor escrito en 0FCh             */
-    uint8_t mc_index;        /* ciclo de máquina en curso dentro de la instrucción */
+
+    /* Secuencia de ciclos de máquina de la instrucción en curso, obtenida
+     * por ejecución en seco. */
+    uint8_t  mc_index;
+    uint8_t  mc_total;
+    uint8_t  mc_status[6];
+    uint16_t mc_addr[6];
+    uint8_t  mc_data[6];
 } umk_step_t;
 
 /* --- Teclado -------------------------------------------------------------
@@ -168,6 +179,14 @@ typedef struct {
     /* Contador de escrituras a puertos no decodificados: útil para detectar
      * programas que hablan con hardware que este equipo no tiene. */
     uint32_t      unmapped_io_writes;
+
+    /* Diario de escrituras en ОЗУ durante la ejecución en seco del modo
+     * paso por ciclo de máquina. Nunca hace falta más de una entrada por
+     * ciclo de máquina. */
+    bool          trial;
+    uint8_t       trial_n;
+    uint16_t      trial_idx[8];
+    uint8_t       trial_old[8];
 } umk_machine_t;
 
 /* --- Ciclo de vida -------------------------------------------------------- */

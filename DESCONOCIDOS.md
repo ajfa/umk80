@@ -223,10 +223,29 @@ explica el mecanismo: el conmutador `РБ/ШГ` en `ШГ` pasa la СУ al estado
 «ожидание» tras cada paso, y `КМ/ЦК` elige si el paso es por instrucción
 (lectura del primer byte del código de operación) o por ciclo de máquina.
 
-**Lo que no sé.** Qué bits exactos del puerto `0FCH` hacen qué, y si es
-sólo escritura o también lectura. Tampoco cómo interactúa la «блокировка
-памяти» con el paso a paso (sospecho que congela la ОЗУ para que el propio
-monitor no se corrompa mientras el usuario avanza).
+**Lo que la transcripción completa añadió.** El monitor sólo toca ese puerto
+en dos sitios, y los dos son inequívocos:
+
+```
+; RST 7 (botón ПР), МОН hoja −6−
+0039 AF     XRA  A                ; СБР.ПОШАГОВЫЙ РЕЖИМ
+003A D3FC   OUT  DBGPORT
+
+; justo antes de saltar al programa de usuario, МОН hoja −38− (rutina EXIT,
+; que se ejecuta desde su copia en ОЗУ)
+03CF 3E01   MVI  A,STEPWRD        ; STEPWRD = 1
+03D1 D3FC   OUT  DBGPORT
+03D4 C34000 JMP  BOOT             ; PCLOC: el destino lo reescribe la directiva СТ
+```
+
+O sea: **el bit 0 del puerto `0FCH` arma el modo paso a paso al ceder el
+control al programa del usuario, y la atención de `ПР` lo desarma.** Con eso,
+el conmutador `РБ/ШГ` sólo surte efecto mientras corre código de usuario, que
+es justo lo que uno querría: el monitor no se puede depurar a sí mismo.
+
+**Lo que sigue sin saberse.** Qué hacen los bits 1 a 7, si el puerto se puede
+leer, y cómo se enlaza exactamente la «схема блокировки памяти» (`D23.2`,
+`D14`, `D9.2`) con todo esto.
 
 **Por qué importa.** Es tu criterio de aceptación 4.
 
