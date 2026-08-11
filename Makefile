@@ -25,12 +25,12 @@ else
   RMDIR = @rm -rf $(BUILD)
 endif
 
-CORE_SRC := core/src/i8080.c
+CORE_SRC := core/src/i8080.c core/src/machine.c
 CORE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CORE_SRC))
 
 .PHONY: all test test-exm clean
 
-all: $(BUILD)/cpu_suite$(EXE)
+all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE)
 
 $(BUILD)/%.o: %.c
 	$(call MKDIR,$(dir $@))
@@ -40,8 +40,13 @@ $(BUILD)/cpu_suite$(EXE): tests/cpu/cpu_suite.c $(CORE_OBJ)
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CFLAGS) $^ -o $@
 
-test: $(BUILD)/cpu_suite$(EXE)
+$(BUILD)/ghosting$(EXE): tests/display/ghosting.c $(CORE_OBJ)
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CFLAGS) $^ -o $@
+
+test: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE)
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites --quick
+	$(BUILD)/ghosting$(EXE)
 
 test-exm: $(BUILD)/cpu_suite$(EXE)
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites
