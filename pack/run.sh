@@ -12,26 +12,37 @@
 set -e
 cd "$(dirname "$0")"
 
-need() {
-    command -v "$1" >/dev/null 2>&1 || {
-        echo "Falta '$1'."
-        echo "En Debian/Ubuntu:  sudo apt install build-essential libsdl2-dev"
-        exit 1
-    }
-}
+have() { command -v "$1" >/dev/null 2>&1; }
 
-need cc || need gcc
-need make
+# Un compilador, el que haya. GNU make trae CC=cc por omisión, así que si
+# sólo está gcc hay que decírselo explícitamente o no lo encuentra.
+if have cc; then
+    CC=cc
+elif have gcc; then
+    CC=gcc
+elif have clang; then
+    CC=clang
+else
+    echo "Falta un compilador de C."
+    echo "En Debian/Ubuntu:  sudo apt install build-essential libsdl2-dev"
+    exit 1
+fi
+
+if ! have make; then
+    echo "Falta 'make'."
+    echo "En Debian/Ubuntu:  sudo apt install build-essential libsdl2-dev"
+    exit 1
+fi
 
 if [ ! -f build/umk80 ]; then
-    echo "Compilando (la primera vez tarda unos segundos)..."
-    if ! make -s; then
+    echo "Compilando con $CC (la primera vez tarda unos segundos)..."
+    if ! make -s CC="$CC"; then
         echo
         echo "La compilación falló. Lo más probable es que falte SDL2:"
         echo "  sudo apt install libsdl2-dev"
         echo
         echo "Sin SDL2 se puede usar igualmente todo lo que no es la ventana:"
-        echo "  make build/umkcli && ./build/umkcli --rom rom/monitor.bin"
+        echo "  make CC=$CC build/umkcli && ./build/umkcli --rom rom/monitor.bin"
         exit 1
     fi
 fi
