@@ -2,10 +2,11 @@
 # =====================================================================
 #  Arma el paquete portable de Linux: build/umk80-linux.tar.gz
 #
-#  Va con FUENTES, no con binarios: un ejecutable de Linux no se puede
-#  construir desde la máquina Windows donde se desarrolla esto, y meter
-#  un binario sin haberlo probado sería peor que no meterlo. El run.sh
-#  del paquete compila en un solo comando.
+#  Va con FUENTES, no con binarios. El paquete está probado de punta a punta
+#  en Ubuntu 22.04 (compila, pasa las cuatro comprobaciones y abre la ventana
+#  SDL2), pero un binario de Linux ata a una versión concreta de glibc y de
+#  SDL2, y aquí no gana nada: compilar son unos segundos y el run.sh del
+#  paquete lo hace en un solo comando.
 # =====================================================================
 set -e
 cd "$(dirname "$0")/.."

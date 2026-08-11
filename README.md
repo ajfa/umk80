@@ -41,6 +41,11 @@ El frontend gráfico usa SDL2 (`libsdl2-dev` en Debian y derivados). Todo lo
 demás — núcleo, herramientas, pruebas y modo sin ventana — compila sin
 dependencia alguna.
 
+Verificado en Ubuntu 22.04 (WSL2, gcc 11, SDL2 2.0.20): compila sin un solo
+aviso, pasa las cuatro comprobaciones de aceptación y la verificación cruzada
+de la ROM, y la ventana SDL2 se abre y se opera con el teclado. 8080EXM tarda
+34 s ahí. En macOS no se ha probado.
+
 ### Con CMake
 
 Se incluye un `CMakeLists.txt` equivalente para quien lo prefiera:
