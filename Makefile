@@ -30,7 +30,8 @@ CORE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CORE_SRC))
 
 .PHONY: all test test-exm clean
 
-all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE)
+all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE) \
+     $(BUILD)/umkrom$(EXE) $(BUILD)/criterio2$(EXE) rom/monitor.bin
 
 $(BUILD)/%.o: %.c
 	$(call MKDIR,$(dir $@))
@@ -44,9 +45,21 @@ $(BUILD)/ghosting$(EXE): tests/display/ghosting.c $(CORE_OBJ)
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CFLAGS) $^ -o $@
 
-test: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE)
+$(BUILD)/umkrom$(EXE): tools/umkrom.c
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CSTD) $(WARN) $(OPT) $< -o $@
+
+rom/monitor.bin: rom/monitor.lst $(BUILD)/umkrom$(EXE)
+	$(BUILD)/umkrom$(EXE) rom/monitor.lst rom/monitor.bin
+
+$(BUILD)/criterio2$(EXE): tests/monitor/criterio2.c $(CORE_OBJ)
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CFLAGS) $^ -o $@
+
+test: all
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites --quick
 	$(BUILD)/ghosting$(EXE)
+	$(BUILD)/criterio2$(EXE) rom/monitor.bin
 
 test-exm: $(BUILD)/cpu_suite$(EXE)
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites

@@ -140,29 +140,37 @@ La orientación queda de todos modos como parámetro del núcleo
 
 ---
 
-## 4. [B] Mapa exacto de la matriz de teclado 6×4
+## 4. ~~[B] Mapa exacto de la matriz de teclado 6×4~~ — **RESUELTO 2026-08-11**
 
-**Lo que sé.** 24 teclas (8 directivas + 16 informativas), ПС p. 34. Se leen
-por `IN PORTC` con máscara `74H` → filas en los bits 2, 4, 5 y 6. Las
-columnas son las mismas seis líneas de `PORTA` que seleccionan el dígito. La
-rutina `CONV` (PDF p. 73) convierte el código leído a ASCII con:
+Sale por deducción completa de la rutina `CONV` (`0302`–`0331`, МОН hojas
+−31− a −33−), una vez transcrita entera. No hizo falta ninguna foto.
+
+El código de fila que calcula `CONV` a partir de `PORTC` vale 0, 4, 8 o 12
+según qué bit esté bajo (4, 6, 5 o 2 respectivamente); las columnas 0 y 1 de
+`PORTA` son teclas de directiva y las 2 a 5 son dígitos:
 
 ```
-; КОД ASCII ЦИФР. СИМВОЛА:      (COD AND 0EFH) / 8  + АДР.ИНДИК-РА / 8
-; КОД ASCII ФУНКЦИОНАЛЬНОГО:    (COD AND 0EFH) / 16 + АДР.ИНДИК-РА - 1
+dígito  = (columna - 2) + código_de_fila          ; 0321  ADD C / ORI '0'
+función = (columna)     + código_de_fila / 2      ; 032E  RRC  / ADD B
 ```
 
-y decide entre las dos por el bit 4 (`ANI 10H`).
+De donde la matriz completa:
 
-**Lo que no sé.** Qué tecla física está en cada intersección (columna,
-fila). La fórmula de `CONV` lo determina por completo, pero hay que
-transcribir la tabla de códigos que hay a continuación (`ТАБЛИЦА КОДОВ
-СИМВОЛОВ`, en torno a `037C–03A0`, PDF p. 79) y cruzarla con la disposición
-física del panel.
+|            | col bit0 | col bit1 | col bit2 | col bit3 | col bit4 | col bit5 |
+|------------|----------|----------|----------|----------|----------|----------|
+| fila bit 4 | `П`      | `РГ`     | `0`      | `1`      | `2`      | `3`      |
+| fila bit 6 | `СТ`     | `КС`     | `4`      | `5`      | `6`      | `7`      |
+| fila bit 5 | `ЗК`     | `ПМ`     | `8`      | `9`      | `A`      | `B`      |
+| fila bit 2 | `␣`      | `ВП`     | `C`      | `D`      | `E`      | `F`      |
 
-**Cómo lo resuelvo.** Transcripción de esa tabla + Рис. 2 del ПС (p. 17,
-dibujo del panel frontal) + fotos del panel real en los artículos de Habr.
-Es trabajo, no incertidumbre: la información está.
+24 teclas: 8 de directiva + 16 informativas, exactamente el reparto del ПС
+p. 34. Las seis directivas dan los códigos 0 a 5, que es justo el rango que
+`START` admite (`CPI 6 / JNC ERROR`) y el orden de `CTBL` (`REPLM`, `REPLRG`,
+`GOTO`, `CHSUM`, `FILE`, `MOVE`). Los códigos 6 y 7 son `SPACE EQU 6` y
+`CR EQU 7`, o sea el espacio y `ВП`. Todo encaja sin holgura.
+
+**Verificado en ejecución**: la prueba del criterio 2 teclea la secuencia
+completa contra el monitor real y sale.
 
 ---
 

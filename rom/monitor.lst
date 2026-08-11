@@ -1,0 +1,975 @@
+# Transcripción del listado del monitor del УМК-80
+#
+# Fuente: Р.Р.00004-01 12 01-1 «Учебный микропроцессорный комплект.
+#         Системный монитор. Текст программы», 1986, литера О₁.
+#         Impreso con ISIS-II 8080/8085 MACRO ASSEMBLER V4.0.
+#         Páginas 46–83 de docs/umk_docs.pdf (hojas −4− a −41−).
+#
+# Formato:  LOC  OBJ | FUENTE
+#   LOC  dirección de 4 dígitos hex, tal como la imprime el listado
+#   OBJ  bytes objeto en hex, tal como los imprime el listado (puede faltar)
+#   |    separador
+#   Las líneas que empiezan por '#' son notas de la transcripción.
+#
+# La columna OBJ es la fuente de verdad del binario; la columna de fuente se
+# reensambla por separado y ambos resultados TIENEN que coincidir byte a byte.
+# Ver PLAN.md §4.
+
+# ===== hoja −4− (MODULE PAGE 3): descripción de puertos =====================
+          | ; 1. ОПИСАНИЕ ПОРТОВ ВВОДА/ВЫВОДА
+0000      |         ORG   0
+00F8      | PORTA   EQU   0F8H          ; ПОРТ АДРЕСА
+00F9      | PORTB   EQU   0F9H          ; ПОРТ ДАННЫХ
+00FA      | PORTC   EQU   0FAH          ; ПОРТ СОСТОЯНИЯ
+00FB      | CNTRRG  EQU   0FBH          ; ПОРТ УПРАВЛ. БИС
+00FC      | DBGPORT EQU   0FCH          ; ПОРТ ПОШАГ. РЕЖ.
+0076      | CNTRWRD EQU   76H           ; УПРАВЛЯЮЩЕЕ СЛОВО
+0001      | STEPWRD EQU   1             ; УСТ. ПОШАГ. РЕЖИМА
+0020      | NMBIND  EQU   00100000B     ; N ИНДИКАТ. N 5
+0352      | TIME    EQU   850           ; ВРЕМЯ ДРЕБЕЗГА 10
+0000      | ERASE   EQU   0             ; СБРОС ИНДИКАЦИИ
+0006      | SPACE   EQU   6             ; КОД СИМВ.-ПРОБЕЛ
+0007      | CR      EQU   7             ; КОД СИМВ.-ВОЗВРАТ
+0001      | TYPEAD  EQU   1             ; ТИП ДАННЫХ-ADDRESS
+0000      | TYPEBT  EQU   0             ; ТИП ДАННЫХ - BYTE
+1000      | RAMEND  EQU   1000H         ; ВЕРХНЯЯ ГРАН. ОЗУ
+002C      | LENTOS  EQU   44            ; ДЛ.ТАБЛ.ИСХ.ЗНАЧ. РЕГ.И ВЕКТ.ПРЕРЫВ.
+0FCE      | BASETOS EQU   RAMEND-LENTOS-6   ; БАЗА В ОЗУ
+0FCE      | STKPTR  EQU   BASETOS       ; ИСХ.ЗНАЧ. SP МОНИТ.
+0FFA      | BUFCD   EQU   RAMEND-6      ; БУФЕР РЕГЕНЕР. ИНДИК.
+0FEE      | USRSTTB EQU   BASETOS+32    ; АДР.ВЕКТ.ПРЕР. В ОЗУ
+0000 C34000 |        JMP   BOOT
+
+# ===== hoja −5− (MODULE PAGE 4): vectores RST 1..6 =========================
+          | ; ОБРАБОТЧИКИ ПРЕРЫВАНИЙ ПОЛЬЗОВАТЕЛЯ.
+          | ; 0-Й И 7-Й УРОВНИ ПРЕРЫВАНИЙ
+          | ; ИСПОЛЬЗУЮТСЯ ПРОГРАММОЙ МОНИТОР.
+0008      |         ORG   08H
+0008 2AEE0F |       LHLD  USRSTTB       ; RST 1
+000B E9   |         PCHL                ; ОБР. 1 УРОВЕНЯ
+0010      |         ORG   10H
+0010 2AF00F |       LHLD  USRSTTB+2     ; RST 2
+0013 E9   |         PCHL                ; ОБР. 2 УРОВЕНЯ
+0018      |         ORG   18H
+0018 2AF20F |       LHLD  USRSTTB+4     ; RST 3
+001B E9   |         PCHL                ; ОБР. 3 УРОВЕНЯ
+0020      |         ORG   20H
+0020 2AF40F |       LHLD  USRSTTB+6     ; RST 4
+0023 E9   |         PCHL                ; ОБР. 4 УРОВЕНЯ
+0028      |         ORG   28H
+0028 2AF60F |       LHLD  USRSTTB+8     ; RST 5
+002B E9   |         PCHL                ; ОБР. 5 УРОВЕНЯ
+0030      |         ORG   30H
+0030 2AF80F |       LHLD  USRSTTB+10    ; RST 6
+0033 E9   |         PCHL                ; ОБР. 6 УРОВЕНЯ
+
+# ===== hoja −6− (MODULE PAGE 5): RST 7 e inicialización ====================
+          | ; 3. ИНИЦИАЛИЗАЦИЯ ПРОГРАММЫ МОНИТОР
+0038      |         ORG   38H
+          | ; ОБРАБОТКА ПРЕРЫВАНИЯ 7-ГО УРОВНЯ
+0038 F5   |         PUSH  PSW
+0039 AF   |         XRA   A             ; СБР.ПОШАГОВЫЙ РЕЖИМ
+003A D3FC |         OUT   DBGPORT
+003C F1   |         POP   PSW
+003D C3B101 |       JMP   RESTART
+          | BOOT:
+          | ; ИНИЦИАЛИЗАЦИЯ СИСТЕМЫ МОНИТОР
+          | ; УСТАНОВКА ИСХОДНЫХ ЗНАЧЕНИЙ РЕГИСТРОВ
+0040 31CE0F |       LXI   SP,STKPTR     ; УСТ.SP МОНИТОРА
+0043 21CE0F |       LXI   H,BASETOS     ; АДР.РЕГ.В ОЗУ
+0046 01BD03 |       LXI   B,TOS         ; ИСХ.ЗНАЧ.РЕГ.
+0049 162C |         MVI   D,LENTOS
+          | MOVLP:
+004B 0A   |         LDAX  B
+004C 77   |         MOV   M,A
+004D 23   |         INX   H
+004E 03   |         INX   B
+004F 15   |         DCR   D
+0050 C24B00 |       JNZ   MOVLP
+          | ; ИСХОДНОЕ ПРОГРАММИРОВАНИЕ БИС
+0053 3E89 |         MVI   A,NOT CNTRWRD
+
+# ===== hoja −7− (MODULE PAGE 6) ============================================
+0055 D3FB |         OUT   CNTRRG
+0057 CDC002 |       CALL  ERSIND        ; ГАШЕНИЕ ИНДИКАЦ.
+
+# ===== hoja −8− (MODULE PAGE 7): START =====================================
+          | ; 4. СТАРТ ПРОГРАММЫ МОНИТОР.
+          | START:
+          | ; ИНИЦИАЛ-Я БУФЕРА ВЫВОДА И ВЫВОД СИМВОЛА
+          | ; "-"  ГОТОВ К ПРИЕМУ ДИРЕКТИВЫ
+          | ; ПРИЕМ С КОНСОЛИ КЛЮЧЕВОГО СЛОВА ДИРЕКТИВЫ
+          | ; ПЕРЕДАЧА УПРАВЛЕНИЯ МОДУЛЮ - ЗАДАНИЮ.
+005A FB   |         EI
+          | ; УСТАНОВКА УКАЗАТЕЛЯ СТЕКА МОНИТОРА
+005B 31CE0F |       LXI   SP,STKPTR
+          | ; ЕСЛИ МЛ. ИНДИКАТОР ПОГАШЕН, ВЫВЕСТИ "-"
+          | ; СЛЕВА, ИНАЧЕ ВЫВОД "-" СПРАВА
+005E 21FF0F |       LXI   H,BUFCD+5
+0061 7E   |         MOV   A,M
+0062 B7   |         ORA   A
+0063 0605 |         MVI   B,5           ; АДР.СТ.ИНДИКАТОРА
+0065 CA6A00 |       JZ    $+5
+0068 0600 |         MVI   B,0           ; АДР.МЛ.ИНДИКАТОРА
+006A 0E40 |         MVI   C,40H
+006C CDB002 |       CALL  CONC
+          | ; АДРЕС ВОЗВРАТА
+006F 215A00 |       LXI   H,START
+0072 E5   |         PUSH  H
+          | ; ПРИЕМ КЛЮЧЕВОГО СИМВОЛА
+0073 CDCD02 |       CALL  CI
+
+# ===== hoja −9− (MODULE PAGE 8) ============================================
+0076 CDC002 |       CALL  ERSIND
+          | ; КОНТРОЛЬ
+0079 FE06 |         CPI   6
+007B D27602 |       JNC   ERROR
+          | ; ВЫБОР ЗАДАНИЯ В C T B L
+007E 216503 |       LXI   H,CTBL
+0081 87   |         ADD   A
+0082 5F   |         MOV   E,A
+0083 1600 |         MVI   D,0
+0085 19   |         DAD   D
+          | ; <HL> - АДРЕС ЗАДАНИЯ
+0086 7E   |         MOV   A,M
+0087 23   |         INX   H
+0088 66   |         MOV   H,M           ; СТ. БАЙТ АДРЕСА
+0089 6F   |         MOV   L,A           ; МЛ. БАЙТ АДРЕСА
+          | ; ПЕРЕДАЧА УПРАВЛЕНИЯ
+008A E9   |         PCHL
+
+# ===== hoja −10− (MODULE PAGE 9): directiva РГ =============================
+          | ; 5. РЕАЛИЗАЦИЯ ДИРЕКТИВ ПРОГРАММЫ МОНИТОР
+          | REPLRG:
+          | ; 5.1. МОДИФИКАЦИЯ СОДЕРЖИМОГО РЕГИСТРОВ
+008B CDC002 |       CALL  ERSIND        ; ПОГАСИТЬ ИНДИКАЦИЮ
+008E CDCD02 |       CALL  CI            ; ПРИЕМ ИДЕНТ-РА РЕГ.
+0091 FE34 |         CPI   '4'           ; КОНТРОЛЬ
+0093 DA7602 |       JC    ERROR
+0096 FE41 |         CPI   'A'           ; ЕСЛИ CODE>='A',
+0098 DA9D00 |       JC    $+5           ; ТО CODE-7
+009B DE07 |         SBI   7
+          | ; ОПРЕДЕЛЕНИЕ АДРЕСА ХРАНЕНИЯ ЗАДАННОГО
+          | ; РЕГИСТРА И ФИЗИЧ. КОДОВ СИМВОЛОВ ИДЕНТИ-
+          | ; ФИЦИРУЮЩИХ РЕГИСТР ПО ТАБЛ. TBLRG
+          | ; СМЕЩЕНИЕ В ТАБЛ.-(КОД ASCII AND 0FH) * 4
+009D 215D03 |       LXI   H,TBLRG-20
+00A0 E60F |         ANI   0FH
+00A2 5F   |         MOV   E,A
+00A3 87   |         ADD   A
+00A4 87   |         ADD   A
+00A5 83   |         ADD   E
+00A6 1600 |         MVI   D,0
+00A8 5F   |         MOV   E,A
+00A9 19   |         DAD   D
+          | ; <C> - КОД ИДЕНТИФИКАТОРА
+
+# ===== hoja −11− (MODULE PAGE 10) ==========================================
+00AA 0605 |         MVI   B,5
+          | IDTOUT:
+00AC 7E   |         MOV   A,M
+00AD B7   |         ORA   A
+00AE CAB700 |       JZ    $+9
+00B1 4F   |         MOV   C,A
+00B2 E5   |         PUSH  H
+00B3 CDB002 |       CALL  CONC
+00B6 E1   |         POP   H
+00B7 23   |         INX   H
+00B8 05   |         DCR   B
+00B9 78   |         MOV   A,B
+00BA FE02 |         CPI   2
+00BC C2AC00 |       JNZ   IDTOUT
+00BF E5   |         PUSH  H
+00C0 0E40 |         MVI   C,40H
+00C2 CDB002 |       CALL  CONC
+00C5 E1   |         POP   H
+          | ; <HL> - АДРЕС Я.П. ХРАНЕНИЯ РЕГИСТРА
+00C6 7E   |         MOV   A,M
+00C7 23   |         INX   H
+00C8 66   |         MOV   H,M
+00C9 6F   |         MOV   L,A
+00CA 4E   |         MOV   C,M           ; ТЕК.ЗНАЧ.РЕГ.
+
+# ===== hoja −12− (MODULE PAGE 11) ==========================================
+00CB E5   |         PUSH  H
+00CC CD8B02 |       CALL  COBYTE        ; ПЕЧАТЬ БАЙТА
+00CF CD6A02 |       CALL  PCHK          ; ЕСЛИ РАЗДЕЛ.
+00D2 E1   |         POP   H
+00D3 DAC002 |       JC    ERSIND        ; КОНЕЦ
+00D6 CA8B00 |       JZ    REPLRG        ; СЛЕД.РЕГИСТР
+          | ; ПРИНЯТЬ НОВОЕ ЗНАЧ. РЕГИСТРА
+00D9 E5   |         PUSH  H
+00DA CDB902 |       CALL  ERSBT
+00DD 0E00 |         MVI   C,TYPEBT
+00DF CD3F02 |       CALL  PARM1
+00E2 7D   |         MOV   A,L
+00E3 E1   |         POP   H
+00E4 77   |         MOV   M,A
+00E5 D28B00 |       JNC   REPLRG
+00E8 C3C002 |       JMP   ERSIND        ; ПОГАСИТЬ ИНДИКАЦИЮ
+          | ; 5.2. МОДИФИКАЦИЯ СОДЕРЖИМОГО ЯЧЕЙКИ ПАМЯТИ
+          | REPLM:
+          | ; ПРИЕМ АДРЕСА Я.П.
+00EB 0E01 |         MVI   C,TYPEAD
+00ED CD3902 |       CALL  PARAM
+          | COMEMLP:
+          | ; ПЕЧАТЬ СОДЕРЖ. Я.П.
+
+# ===== hoja −13− (MODULE PAGE 12) ==========================================
+00F0 4E   |         MOV   C,M
+00F1 E5   |         PUSH  H
+00F2 CD8B02 |       CALL  COBYTE
+          | ; ПРИЕМ СИМВОЛА
+00F5 CD6A02 |       CALL  PCHK          ; ЕСЛИ РАЗДЕЛ., СЛЕД.ЯЧ
+00F8 E1   |         POP   H
+00F9 DAC002 |       JC    ERSIND        ; ЗАКОНЧИТЬ ДИРЕКТИВУ
+00FC CA0E01 |       JZ    MEMNEXT
+          | ; ПРИНЯТЬ НОВОЕ ЗНАЧЕНИЕ СОДЕРЖ. Я.П.
+00FF E5   |         PUSH  H
+0100 CDB902 |       CALL  ERSBT
+0103 0E00 |         MVI   C,TYPEBT
+0105 CD3F02 |       CALL  PARM1
+0108 7D   |         MOV   A,L
+0109 E1   |         POP   H
+010A 77   |         MOV   M,A
+010B DAC002 |       JC    ERSIND        ; ЗАКОНЧИТЬ
+          | MEMNEXT:
+          | ; ПЕРЕЙТИ К СЛЕД. Я.П.
+010E 23   |         INX   H
+010F 44   |         MOV   B,H
+0110 4D   |         MOV   C,L
+0111 E5   |         PUSH  H
+0112 CDA302 |       CALL  COADR
+0115 E1   |         POP   H
+
+# ===== hoja −14− (MODULE PAGE 13): directiva СТ ============================
+0116 C3F000 |       JMP   COMEMLP
+          | ; 5.3. ВЫПОЛНЕНИЕ ПРОГРАММЫ ПОЛЬЗОВАТЕЛЯ
+          | GOTO:
+          | ; ПРЕДУСМОТРЕНА ВОЗМОЖНОСТЬ УСТАНОВКИ
+          | ; ДО 2-Х ТОЧЕК ОСТАНОВА
+0119 21D60F |       LXI   H,BASETOS+EXIT-TOS  ; АД.EXIT
+011C E3   |         XTHL                ; В СТЕКЕ АДРЕС EXIT
+011D CD6A02 |       CALL  PCHK
+0120 CA2B01 |       JZ    G00           ; ВЫП.С ТЕК.АДРЕСА
+0123 0E01 |         MVI   C,TYPEAD
+0125 CD3F02 |       CALL  PARM1         ; ПРИЕМ НАЧ.АДРЕСА
+0128 22E60F |       SHLD  BASETOS+PCLOC+1-TOS ; ЗП.АДР.
+          |                             ; ВХОДА В ПРОГ.ПОЛЬЗ.
+          | G00:
+012B D8   |         RC                  ; ВЫПОЛНИТЬ
+012C 110200 |       LXI   D,2           ; ПР.АДР.2-Х ТЧК.ОСТ.
+          | G01:
+012F CDC302 |       CALL  ERSADR        ; ПОГАСИТЬ АДР.ИНДИК.
+0132 014002 |       LXI   B,240H        ; ВЫВОД "-" НА 2 ИНД.
+0135 D5   |         PUSH  D
+0136 CDB002 |       CALL  CONC
+0139 CD3902 |       CALL  PARAM         ; ПРИЕМ АДРЕСА
+013C D1   |         POP   D
+
+# ===== hoja −15− (MODULE PAGE 14) ==========================================
+013D E5   |         PUSH  H
+013E 14   |         INR   D             ; КОЛ-ВО ПАРАМЕТРОВ+1
+013F DA4601 |       JC    G02           ; ПАРАМЕТРЫ ПРИНЯТЫ
+0142 1D   |         DCR   E
+0143 C22F01 |       JNZ   G01
+          | G02:
+0146 D27602 |       JNC   ERROR         ; > 2-Х ТОЧЕК ОСТ.
+          | ; ЗАПОМНИТЬ АДРЕСА ТОЧЕК ОСТАНОВА И
+          | ; ЯЧЕЕК ПАМЯТИ В СПЕЦИАЛЬНОЙ ОБЛ.ОЗУ
+          | ; УСТАНОВИТЬ В НИХ ТОЧКИ ПРЕРЫВАНИЯ
+0149 21E80F |       LXI   H,BASETOS+TLOC-TOS
+          | G03:
+014C C1   |         POP   B             ; АДРЕС ТОЧКИ ОСТАНОВА
+014D 71   |         MOV   M,C           ; СОХРАНИТЬ
+014E 23   |         INX   H
+014F 70   |         MOV   M,B
+0150 23   |         INX   H
+0151 0A   |         LDAX  B             ; СОДЕРЖ.ТОЧКИ ОСТАН.
+0152 77   |         MOV   M,A           ; СОХРАНИТЬ
+0153 3EFF |         MVI   A,0FFH        ; RST7
+0155 02   |         STAX  B             ; УСТ. ПРЕРЫВАНИЕ
+0156 23   |         INX   H
+0157 15   |         DCR   D
+
+# ===== hoja −16− (MODULE PAGE 15): directivas ЗК y ПМ ======================
+0158 C24C01 |       JNZ   G03           ; 2 ТОЧКА ОСТАНОВА
+015B C9   |         RET
+          | ; 5.4. ЗАПОЛНЕНИЕ МАССИВА ОЗУ КОНСТАНТОЙ
+          | FILE:
+015C 0E02 |         MVI   C,2           ; ПРИНЯТЬ НАЧ. И КОН.
+015E CD1F02 |       CALL  CIADR         ; АДРЕСА ОБЛАСТИ ОЗУ
+0161 0E00 |         MVI   C,TYPEBT
+0163 CD3902 |       CALL  PARAM         ; ПРИЕМ ДАННЫХ
+0166 4D   |         MOV   C,L
+0167 D1   |         POP   D             ; КОН.АДРЕС
+0168 E1   |         POP   H             ; НАЧ.АДРЕС
+0169 CD3402 |       CALL  COMPA1
+016C DA7602 |       JC    ERROR
+          | FILELP:
+016F 71   |         MOV   M,C
+0170 CD2F02 |       CALL  COMPA         ; ЕСЛИ HL > DE,
+0173 D26F01 |       JNC   FILELP        ; CARRY = 1
+0176 C3C002 |       JMP   ERSIND        ; ПОГАСИТЬ ИНД.
+          | ; 5.5. КОПИРОВАНИЕ ОБЛАСТЕЙ ПАМЯТИ
+          | MOVE:
+0179 0E03 |         MVI   C,3           ; ПРИЕМ ПАРАМЕТРОВ
+017B CD1F02 |       CALL  CIADR         ; ПЕРЕМЕЩЕНИЯ
+
+# ===== hoja −17− (MODULE PAGE 16): directiva КС ============================
+017E C1   |         POP   B             ; НАЧ.АДР. - КУДА
+017F D1   |         POP   D             ; КОН.АДРЕС ИСТОЧНИКА
+0180 E1   |         POP   H             ; НАЧ.АДРЕС ИСТОЧНИКА
+0181 CD3402 |       CALL  COMPA1
+0184 DA7602 |       JC    ERROR
+          | MOVELP:
+0187 7E   |         MOV   A,M
+0188 02   |         STAX  B
+0189 03   |         INX   B
+018A CD2F02 |       CALL  COMPA
+018D D28701 |       JNC   MOVELP
+0190 C3C002 |       JMP   ERSIND
+          | ; 5.6. ПОДСЧЕТ КОНТРОЛЬНОЙ СУММЫ
+          | CHSUM:
+          | ; ПОДСЧЕТ КС ЗАДАННОЙ ОБЛАСТИ ОЗУ
+          | ; КС - ПРЕДСТАВЛЯЕТ СОБОЙ СУММУ ВСЕХ ЯЧЕЕК
+          | ; ПАМЯТИ БЕЗ УЧЕТА ПЕРЕНОСА
+0193 0E02 |         MVI   C,2           ; ПРИЕМ НАЧ.И КОН.
+0195 CD1F02 |       CALL  CIADR         ; АДРЕСОВ
+0198 D1   |         POP   D
+0199 E1   |         POP   H
+019A CD3402 |       CALL  COMPA1
+019D DA7602 |       JC    ERROR
+
+# ===== hoja −18− (MODULE PAGE 17) ==========================================
+01A0 0E00 |         MVI   C,0           ; ИСХОДНОЕ ЗНАЧ. КС
+          | CSUMLP:
+01A2 79   |         MOV   A,C
+01A3 86   |         ADD   M
+01A4 4F   |         MOV   C,A
+01A5 CD2F02 |       CALL  COMPA
+01A8 D2A201 |       JNC   CSUMLP
+01AB CD8B02 |       CALL  COBYTE        ; ВЫВОД ЗНАЧ. КС
+01AE C3C302 |       JMP   ERSADR        ; ПОГАСИТЬ АД.ИНД.
+
+# ===== hoja −19− (MODULE PAGE 18): RESTART (interrupción ПР) ===============
+          | ; 6. ОБРАБАТЫВАЮЩИЕ ПРОГРАММЫ.
+03D5      | PLLOC   EQU   PCLOC+1
+03D6      | PHLOC   EQU   PLLOC+1
+03CB      | LLOC    EQU   HLLOC+1
+03CC      | HLOC    EQU   LLOC+1
+03C1      | SLLOC   EQU   SPLOC
+03C2      | SHLOC   EQU   SLLOC+1
+          | RESTART:
+          | ; ОБРАБОТКА ПРЕРЫВАНИЯ 7-ГО УРОВНЯ
+          | ; - СОХРАНИТЬ ТЕКУЩЕЕ СОСТОЯНИЕ ПРОЦЕССОРА
+          | ; - ВОССТАНОВИТЬ ИСХ.ЗНАЧ.ТОЧЕК ПРЕРЫВАНИЯ
+01B1 F3   |         DI
+          | ; ЕСЛИ ПРЕРВАНА РАБОТА ПРОГРАММЫ МОНИТОР,
+          | ; ПРЕРЫВАНИЕ ИГНОРИРОВАТЬ
+01B2 E3   |         XTHL                ; HL-АДРЕС Т.ПРЕРЫВ.
+01B3 2B   |         DCX   H             ; АДРЕС ТОЧКИ ОСТАНОВА
+01B4 D5   |         PUSH  D
+01B5 F5   |         PUSH  PSW
+01B6 11E903 |       LXI   D,PCEND
+01B9 7D   |         MOV   A,L
+01BA 93   |         SUB   E
+01BB 7C   |         MOV   A,H
+01BC 9A   |         SBB   D
+01BD DA7602 |       JC    ERROR         ; ПРЕРВАН МОНИТОР
+
+# ===== hoja −20− (MODULE PAGE 19) ==========================================
+01C0 F1   |         POP   PSW           ; ВОССТ-ТЬ ЗНАЧ.РЕГ.
+01C1 D1   |         POP   D
+01C2 23   |         INX   H             ; АДРЕС СЛЕД. КОМАНДЫ
+01C3 E3   |         XTHL
+          | ; СОХРАНИТЬ СОСТОЯНИЕ ПРОЦЕССОРА НА СТЕКЕ
+          | ; ПОЛЬЗОВАТЕЛЯ
+01C4 E5   |         PUSH  H
+01C5 D5   |         PUSH  D
+01C6 C5   |         PUSH  B
+01C7 F5   |         PUSH  PSW
+01C8 210A00 |       LXI   H,10
+01CB 39   |         DAD   SP            ; СТЕК ПОЛЬЗОВАТЕЛЯ
+01CC E3   |         XTHL
+          | ; ЗП.СОСТ.ПРОЦЕССОРА В СПЕЦ. ОБЛАСТИ ОЗУ
+01CD 11D60F |       LXI   D,BASETOS+8
+01D0 0604 |         MVI   B,4
+01D2 EB   |         XCHG
+          | RST0:
+01D3 2B   |         DCX   H
+01D4 72   |         MOV   M,D
+01D5 2B   |         DCX   H
+01D6 73   |         MOV   M,E
+01D7 D1   |         POP   D
+01D8 05   |         DCR   B
+
+# ===== hoja −21− (MODULE PAGE 20) ==========================================
+01D9 C2D301 |       JNZ   RST0
+01DC C1   |         POP   B             ; <BC> - PC
+01DD 0B   |         DCX   B             ; PC-1
+01DE F9   |         SPHL                ; СТЕК МОНИТОРА
+          | ; ОПРЕДЕЛИТЬ ИСТОЧНИК ПРЕРЫВАНИЯ
+          | ; ЕСЛИ ПРЕРЫВАНИЕ ВНЕШНЕЕ, PC=PC+1
+01DF 21E80F |       LXI   H,BASETOS+TLOC-TOS  ; 1 Т.ПР.
+01E2 7E   |         MOV   A,M
+01E3 91   |         SUB   C
+01E4 23   |         INX   H
+01E5 7E   |         MOV   A,M
+01E6 98   |         SBB   B
+01E7 CAF501 |       JZ    RST1          ; ПРЕР-Е ПРОГРАМ.
+01EA 23   |         INX   H
+01EB 23   |         INX   H
+01EC 7E   |         MOV   A,M
+01ED 91   |         SUB   C
+01EE 23   |         INX   H
+01EF 7E   |         MOV   A,M
+01F0 98   |         SBB   B
+01F1 CAF501 |       JZ    $+4
+01F4 03   |         INX   B             ; ПРЕРЫВАНИЕ ВНЕШНЕЕ
+          | RST1:
+          | ; ЗАПОМНИТЬ В ОЗУ HL И PC
+01F5 21DC0F |       LXI   H,BASETOS+LLOC-TOS
+
+# ===== hoja −22− (MODULE PAGE 21) ==========================================
+01F8 73   |         MOV   M,E
+01F9 23   |         INX   H
+01FA 72   |         MOV   M,D
+01FB 21E60F |       LXI   H,BASETOS+PLLOC-TOS
+01FE 71   |         MOV   M,C
+01FF 23   |         INX   H
+0200 70   |         MOV   M,B
+0201 CDA302 |       CALL  COADR         ; АДРЕС НА ИНДИК.
+          | ; ВОССТАНОВЛЕНИЕ ИСХОДНЫХ ЗНАЧЕНИЙ ЯЧЕЕК
+          | ; В ТОЧКАХ ПРЕРЫВАНИЯ
+0204 21E80F |       LXI   H,BASETOS+TLOC-TOS
+0207 1602 |         MVI   D,2
+          | RST2:
+0209 4E   |         MOV   C,M
+020A AF   |         XRA   A
+020B 77   |         MOV   M,A
+020C 23   |         INX   H
+020D 46   |         MOV   B,M
+020E 77   |         MOV   M,A
+020F 23   |         INX   H
+0210 79   |         MOV   A,C
+0211 B0   |         ORA   B
+0212 CA1702 |       JZ    RST3          ; НЕТ ТОЧКИ ПР-Я
+0215 7E   |         MOV   A,M
+
+# ===== hoja −23− (MODULE PAGE 22) ==========================================
+0216 02   |         STAX  B
+          | RST3:
+0217 23   |         INX   H
+0218 15   |         DCR   D
+0219 C20902 |       JNZ   RST2
+021C C35A00 |       JMP   START
+          | CIADR:
+          | ; ПРИЕМ N ПАРАМЕТРОВ, N = <C>
+021F 41   |         MOV   B,C
+          | CIADLP:
+0220 CDC002 |       CALL  ERSIND
+0223 0E01 |         MVI   C,TYPEAD
+0225 CD3902 |       CALL  PARAM
+0228 E3   |         XTHL
+0229 E5   |         PUSH  H
+022A 05   |         DCR   B
+022B C22002 |       JNZ   CIADLP
+022E C9   |         RET
+          | COMPA:
+          | ; ЕСЛИ <HL>+1 = 0 ИЛИ > DE, CARRY=1
+022F 23   |         INX   H
+0230 7D   |         MOV   A,L
+0231 B4   |         ORA   H
+0232 37   |         STC
+
+# ===== hoja −24− (MODULE PAGE 23) ==========================================
+0233 C8   |         RZ
+          | COMPA1:
+0234 7B   |         MOV   A,E
+0235 95   |         SUB   L
+0236 7A   |         MOV   A,D
+0237 9C   |         SBB   H
+0238 C9   |         RET
+          | PARAM:
+          | ; ПРИЕМ С КОНСОЛИ HEX-ПАРАМЕТРА: BYTE ИЛИ
+          | ; ADDRESS. ПРЕОБР-Е В ДВОИЧНОЕ ПРЕДСТАВЛ-Е
+          | ; ВХ:<C>-ТИП ПАРАМЕТРА, 0-BYTE, 1-ADDRESS
+          | ; НАБОР ПАРАМЕТРА ЗАКАНЧ-ТСЯ: ПРОБЕЛ, ВК
+          | ; ВЫХ: HL-ДВОИЧНОЕ ПРЕДСТАВЛЕНИЕ ПАРАМЕТРА
+0239 CD6A02 |       CALL  PCHK          ; ПРОБЕЛ, ВК - ?
+          |                             ; ЕСЛИ ДА, ZERO=1
+023C CA7602 |       JZ    ERROR
+          | PARM1:
+023F C5   |         PUSH  B
+0240 210000 |       LXI   H,0           ; ИСХ.ЗНАЧ.РЕЗУЛЬТ.
+          | PARCNT:
+          | ; КОД СИМВОЛА В <A>
+          | ; ПРОВЕРКА ПРИНЯТОГО СИМВОЛА
+          | ; ПРЕОБРАЗОВАНИЕ ПАРАМЕТРА
+0243 FE30 |         CPI   '0'
+
+# ===== hoja −25− (MODULE PAGE 24) ==========================================
+0245 DA7602 |       JC    ERROR         ; НЕ HEX-СИМВОЛ
+0248 E5   |         PUSH  H             ; ЗП. РЕЗУЛЬТАТ
+0249 41   |         MOV   B,C
+024A 4F   |         MOV   C,A
+024B CD3203 |       CALL  CO            ; ОТОБР-ТЬ СИМВОЛ
+024E E1   |         POP   H             ; ВОССТ-ТЬ РЕЗУЛЬТАТ
+          | ; ПРЕОБРАЗ. КОДА ПРИНЯТОГО СИМВОЛА В
+          | ; ДВОИЧНОЕ ПРЕДСТАВЛЕНИЕ
+024F 79   |         MOV   A,C
+0250 D630 |         SUI   '0'
+0252 FE0A |         CPI   10
+0254 DA5902 |       JC    $+5
+0257 D607 |         SUI   7
+          | ; НАКОПЛЕНИЕ РЕЗУЛЬТАТА
+0259 29   |         DAD   H             ; СДВИГ РЕЗУЛЬТАТА
+025A 29   |         DAD   H             ; ВЛЕВО НА ТЕТРАДУ
+025B 29   |         DAD   H
+025C 29   |         DAD   H
+025D B5   |         ORA   L
+025E 6F   |         MOV   L,A
+025F 48   |         MOV   C,B
+0260 E5   |         PUSH  H
+0261 CD6A02 |       CALL  PCHK          ; ПРОБЕЛ, ВК - КОНЕЦ
+0264 E1   |         POP   H
+
+# ===== hoja −26− (MODULE PAGE 25) ==========================================
+0265 C24302 |       JNZ   PARCNT
+0268 C1   |         POP   B
+0269 C9   |         RET
+          | PCHK:
+          | ; ПРОВЕРКА СИМВОЛА НА "ПРОБЕЛ" И "ВК"
+          | ; ЕСЛИ "ПРОБЕЛ" - ZERO=1
+          | ; ЕСЛИ "ВК"     - ZERO=1, CARRY=1
+026A CDCD02 |       CALL  CI            ; ПРИЕМ СИМВОЛА
+026D FE06 |         CPI   SPACE
+026F C8   |         RZ
+0270 FE07 |         CPI   CR
+0272 37   |         STC
+0273 C8   |         RZ
+0274 3F   |         CMC
+0275 C9   |         RET
+          | ERROR:
+          | ; ОБРАБОТКА ОШИБОК
+          | ; ГАШЕНИЕ ЭКРАНА И ВЫВОД СИМВОЛА "?"
+0276 CDC002 |       CALL  ERSIND
+0279 01D300 |       LXI   B,0D3H        ; B-N ИНД., C -"?"
+027C CDB002 |       CALL  CONC
+027F C35A00 |       JMP   START
+          | CONVBIN:
+
+# ===== hoja −27− (MODULE PAGE 26) ==========================================
+          | ; ПРЕОБР-Е МЛ.ТЕТРАДЫ БАЙТА В HEX-ВИД
+0282 E60F |         ANI   0FH
+0284 C690 |         ADI   90H
+0286 27   |         DAA
+0287 CE40 |         ACI   40H
+0289 27   |         DAA
+028A C9   |         RET
+          | COBYTE:
+          | ; ВЫВОД НА ИНДИКАЦИЮ БАЙТА В HEX ФОРМЕ
+          | ; <C> БАЙТ
+          | ; ПРЕОБРАЗОВАНИЕ БАЙТА В HEX-ФОРМУ
+028B 0600 |         MVI   B,TYPEBT
+028D 79   |         MOV   A,C
+028E 0F   |         RRC
+028F 0F   |         RRC
+0290 0F   |         RRC
+0291 0F   |         RRC
+0292 CD8202 |       CALL  CONVBIN
+0295 C5   |         PUSH  B
+0296 4F   |         MOV   C,A
+0297 CD3203 |       CALL  CO
+029A C1   |         POP   B
+029B 79   |         MOV   A,C
+029C CD8202 |       CALL  CONVBIN
+
+# ===== hoja −28− (MODULE PAGE 27) ==========================================
+029F 4F   |         MOV   C,A
+02A0 C33203 |       JMP   CO
+          | COADR:
+          | ; ВЫВОД НА ИНДИКАЦИЮ АДРЕСА В HEX ФОРМЕ
+          | ; <BC>-АДРЕС
+02A3 C5   |         PUSH  B
+02A4 48   |         MOV   C,B
+02A5 0601 |         MVI   B,TYPEAD
+02A7 CD8D02 |       CALL  COBYTE+2
+02AA C1   |         POP   B
+02AB 0601 |         MVI   B,TYPEAD
+02AD C38D02 |       JMP   COBYTE+2
+          | CONC:
+          | ; ВЫВОД СИМВОЛА НА КОНСОЛЬ
+          | ; <B>-N ИНДИКАТОРА
+          | ; <C>-КОД СИМВОЛА
+02B0 21FA0F |       LXI   H,BUFCD
+02B3 58   |         MOV   E,B
+02B4 1600 |         MVI   D,0
+02B6 19   |         DAD   D
+02B7 71   |         MOV   M,C
+02B8 C9   |         RET
+
+# ===== hoja −29− (MODULE PAGE 28) ==========================================
+          | ERSBT:
+          | ; ГАШЕНИЕ ИНДИКАЦИИ ДАННЫХ
+02B9 210000 |       LXI   H,ERASE
+02BC 22FA0F |       SHLD  BUFCD
+02BF C9   |         RET
+          | ERSIND:
+          | ; ГАШЕНИЕ ИНДИКАЦИИ
+02C0 CDB902 |       CALL  ERSBT
+          | ERSADR:
+          | ; ГАШЕНИЕ АДРЕСНОЙ ИНДИКАЦИИ
+02C3 210000 |       LXI   H,ERASE
+02C6 22FC0F |       SHLD  BUFCD+2
+02C9 22FE0F |       SHLD  BUFCD+4
+02CC C9   |         RET
+          | CI:
+          | ; РЕГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ НА ИНДИКАТОРАХ
+          | ; СКАНИРОВАНИЕ КОНСОЛИ И ПРИЕМ СИМВОЛОВ
+          | ; ПРЕОБРАЗОВАНИЕ ПРИНЯТЫХ КОДОВ
+02CD C5   |         PUSH  B
+          | CIBEG:
+          | ; РЕГЕНЕРАЦИЯ
+02CE 21FA0F |       LXI   H,BUFCD       ; АДР.БУФ.ВЫВОДА
+
+# ===== hoja −30− (MODULE PAGE 29): lazo de regeneración ====================
+02D1 0620 |         MVI   B,NMBIND      ; АДР.ИНДИК.
+          | CILOOP:
+          | ; ЦИКЛ РЕГЕНЕРАЦИИ
+          | ; N ИНДИКАТОРА
+02D3 78   |         MOV   A,B
+02D4 D3F8 |         OUT   PORTA
+          | ; ВЫВОД ДАННЫХ НА ИНДИКАТОР
+02D6 7E   |         MOV   A,M
+02D7 D3F9 |         OUT   PORTB
+          | ; СКАНИРОВАНИЕ КОНСОЛИ
+02D9 DBFA |         IN    PORTC         ; ЧТЕНИЕ СОСТОЯНИЯ
+02DB E674 |         ANI   74H           ; МОМЕНТ НАЖАТИЯ
+02DD FE74 |         CPI   74H           ; КЛАВИШИ
+          | ; СБРОС ИНДИКАЦИИ
+02DF 3E00 |         MVI   A,ERASE
+02E1 D3F9 |         OUT   PORTB
+02E3 C2F002 |       JNZ   CISMB         ; КЛАВИША НАЖАТА
+02E6 23   |         INX   H             ; РЕГЕНЕРИРОВАТЬ СЛЕД.
+02E7 78   |         MOV   A,B           ; ИНДИКАТОР
+02E8 0F   |         RRC                 ; N СЛЕД.ИНДИКАТОРА
+02E9 47   |         MOV   B,A
+02EA D2D302 |       JNC   CILOOP
+02ED C3CE02 |       JMP   CIBEG         ; СНАЧАЛА
+          | CISMB:
+          | ; ЗАДЕРЖКА 10 МС, БОРЬБА С ДРЕБЕЗГОМ
+
+# ===== hoja −31− (MODULE PAGE 30) ==========================================
+02F0 CD5B03 |       CALL  DELAY
+          | ; ВВОД КОДА СИМВОЛА
+02F3 DBFA |         IN    PORTC
+02F5 4F   |         MOV   C,A
+          | ; ОЖИДАНИЕ МОМЕНТА ОТПУСКАНИЯ КЛАВИШИ
+02F6 DBFA |         IN    PORTC
+02F8 E674 |         ANI   74H
+02FA FE74 |         CPI   74H
+02FC C2F602 |       JNZ   $-6
+02FF CD5B03 |       CALL  DELAY
+          | CONV:
+          | ; ПРЕОБРАЗОВАНИЕ КОДА ПРИНЯТОГО СИМВОЛА
+          | ; В КОД ASCII. КОД ASCII ЦИФР. СИМВОЛА:
+          | ; (COD AND 0EFH) / 8 + АДР.ИНДИК-РА / 8
+          | ; КОД ASCII ФУНКЦИОНАЛЬНОГО СИМВОЛА:
+          | ; (COD AND 0EFH) / 16 + АДР.ИНДИК-РА - 1
+0302 79   |         MOV   A,C
+0303 E610 |         ANI   10H
+0305 C20A03 |       JNZ   $+5           ; РЯД КЛАВИШ НЕ 0
+0308 0E00 |         MVI   C,0
+030A 79   |         MOV   A,C           ; CODE
+030B E664 |         ANI   64H
+030D 1F   |         RAR
+030E 1F   |         RAR
+
+# ===== hoja −32− (MODULE PAGE 31) ==========================================
+030F 1F   |         RAR                 ; /8
+0310 4F   |         MOV   C,A
+          | ; РАЗДЕЛЕНИЕ ФУНКЦ-Х И ЦИФРОВЫХ КЛАВИШ
+          | ; ЕСЛИ МЛ. 2 РАЗРЯДА N ИНДИКАТОРА = 0
+          | ; - КЛАВИША ЦИФРОВАЯ
+0311 78   |         MOV   A,B
+0312 E603 |         ANI   3
+0314 C22B03 |       JNZ   FUNC
+0317 78   |         MOV   A,B
+          | ; N ИНДИКАТОРА / 8
+0318 1F   |         RAR
+0319 1F   |         RAR
+031A 1F   |         RAR
+031B FE04 |         CPI   4
+031D C22103 |       JNZ   $+4
+0320 3D   |         DCR   A
+          | ; CODE.DGT=
+0321 81   |         ADD   C
+0322 F630 |         ORI   '0'
+0324 FE3A |         CPI   3AH
+0326 C1   |         POP   B
+0327 D8   |         RC
+0328 C607 |         ADI   7
+032A C9   |         RET
+          | FUNC:
+
+# ===== hoja −33− (MODULE PAGE 32) ==========================================
+          | ; CODE.FUN
+032B 3D   |         DCR   A
+032C 47   |         MOV   B,A
+032D 79   |         MOV   A,C
+032E 0F   |         RRC
+032F 80   |         ADD   B
+0330 C1   |         POP   B
+0331 C9   |         RET
+          | CO:
+          | ; ПРЕОБРАЗОВАНИЕ КОДА ASCII СИМВОЛА В ЕГО
+          | ; ФИЗИЧЕСКОЕ ПРЕДСТАВЛЕНИЕ, ЗАПИСЬ ПОЛУ-
+          | ; ЧЕННОГО КОДА В БУФЕР ВЫВОДА. СДВИГ ТЕК.
+          | ; СОСТОЯНИЯ ИНДИКАТОРОВ НА 1 ШАГ ВЛЕВО
+          | ; ПОСРЕДСТВОМ МОДИФИКАЦИИ БУФЕРА ВЫВОДА,
+          | ; ОТОБРАЖАЮЩЕГО СОСТОЯНИЕ ИНДИКАТОРОВ.
+          | ; <C> - КОД СИМВОЛА ASCII
+          | ; <B> - ТИП ДАННЫХ, 0-BYTE, 1-ADDRESS
+          | ; ПРЕОБР.КОДА СИМВ.ASCII В КОД ИНДИК-РА
+0332 21AD03 |       LXI   H,SMBTBL
+0335 79   |         MOV   A,C
+0336 FE41 |         CPI   'A'
+0338 DA3D03 |       JC    $+5
+033B D607 |         SUI   7
+033D E60F |         ANI   0FH
+
+# ===== hoja −34− (MODULE PAGE 33) ==========================================
+033F 5F   |         MOV   E,A
+0340 1600 |         MVI   D,0
+0342 19   |         DAD   D
+0343 5E   |         MOV   E,M           ; КОД СИМВОЛА
+          | ; СДВИГ ЕЛЕМЕНТОВ БУФЕРА ВЫВОДА НА 1
+          | ; ШАГ ВЛЕВО В АДРЕСНОЙ ИЛИ БАЙТОВОЙ
+          | ; ЕГО ЧАСТИ. ЗП.В ПОЛЕ МЛ.ИНДИК-РА
+          | ; КОДА НОВОГО СИМВОЛА
+0344 21FA0F |       LXI   H,BUFCD
+0347 1602 |         MVI   D,2
+0349 78   |         MOV   A,B
+034A B7   |         ORA   A
+034B CA5203 |       JZ    RALLP
+034E 23   |         INX   H             ; БУФЕР ДАННЫХ-ADDRES
+034F 23   |         INX   H
+0350 1604 |         MVI   D,4           ; 4 СДВИГА
+          | RALLP:
+          | ; ЦИКЛ СДВИГА И ПЕРЕЗП.ЕЛЕМЕНТОВ БУФЕРА
+0352 7E   |         MOV   A,M
+0353 73   |         MOV   M,E
+0354 5F   |         MOV   E,A
+0355 23   |         INX   H
+0356 15   |         DCR   D
+0357 C25203 |       JNZ   RALLP
+035A C9   |         RET
+
+# ===== hoja −35− (MODULE PAGE 34): DELAY, CTBL, TBLRG ======================
+          | DELAY:
+          | ; ВРЕМЕННАЯ ЗАДЕРЖКА.
+          | ; ВРЕМЯ ОДНОГО ЦИКЛА = 10 МИКРОСЕК.
+035B 115203 |       LXI   D,TIME
+035E 1B   |         DCX   D
+035F 7A   |         MOV   A,D
+0360 B3   |         ORA   E
+0361 C25E03 |       JNZ   $-3
+0364 C9   |         RET
+          | CTBL:
+          | ; ТАБЛИЦА АДРЕСОВ ПРОГРАММНЫХ МОДУЛЕЙ
+          | ; РЕАЛИЗУЮЩИХ ЗАДАННЫЙ НАБОР ДИРЕКТИВ
+0365 EB00 |         DW    REPLM
+0367 8B00 |         DW    REPLRG
+0369 1901 |         DW    GOTO
+036B 9301 |         DW    CHSUM
+036D 5C01 |         DW    FILE
+036F 7901 |         DW    MOVE
+          | TBLRG:
+          | ; ТАБЛИЦА ИДЕНТИФ-В РЕГИСТРОВ ПРОЦЕССОРА
+          | ; И АДР. ОЗУ, ГДЕ ХРАНИТСЯ ИХ СОДЕРЖИМОЕ.
+0371 73   |         DB    73H,39H,76H   ; PC H
+0372 39   |
+0373 76   |
+
+# ===== hoja −36− (MODULE PAGE 35): TBLRG (continuación) ====================
+0374 E70F |         DW    BASETOS+PHLOC-TOS
+0376 73   |         DB    73H,39H,38H   ; PC L
+0377 39   |
+0378 38   |
+0379 E60F |         DW    BASETOS+PLLOC-TOS
+037B 6D   |         DB    6DH,73H,76H   ; SP H
+037C 73   |
+037D 76   |
+037E D30F |         DW    BASETOS+SHLOC-TOS
+0380 6D   |         DB    6DH,73H,38H   ; SP L
+0381 73   |
+0382 38   |
+0383 D20F |         DW    BASETOS+SLLOC-TOS
+0385 00   |         DB    0,0,76H       ; H
+0386 00   |
+0387 76   |
+0388 DD0F |         DW    BASETOS+HLOC-TOS
+038A 00   |         DB    0,0,38H       ; L
+038B 00   |
+038C 38   |
+038D DC0F |         DW    BASETOS+LLOC-TOS
+038F 00   |         DB    0,0,77H       ; A
+0390 00   |
+0391 77   |
+0392 D50F |         DW    BASETOS+ALOC-TOS
+0394 00   |         DB    0,0,7CH       ; B
+0395 00   |
+0396 7C   |
+0397 D10F |         DW    BASETOS+BLOC-TOS
+0399 00   |         DB    0,0,39H       ; C
+039A 00   |
+039B 39   |
+039C D00F |         DW    BASETOS+CLOC-TOS
+
+# ===== hoja −37− (MODULE PAGE 36): fin de TBLRG y SMBTBL ===================
+039E 00   |         DB    0,0,5EH       ; D
+039F 00   |
+03A0 5E   |
+03A1 CF0F |         DW    BASETOS+DLOC-TOS
+03A3 00   |         DB    0,0,79H       ; E
+03A4 00   |
+03A5 79   |
+03A6 CE0F |         DW    BASETOS+ELOC-TOS
+03A8 00   |         DB    0,0,71H       ; F
+03A9 00   |
+03AA 71   |
+03AB D40F |         DW    BASETOS+FLOC-TOS
+          | SMBTBL:
+          | ; ТАБЛИЦА КОДОВ СИМВОЛОВ
+03AD 3F   |         DB    3FH,6,5BH,4FH
+03AE 06   |
+03AF 5B   |
+03B0 4F   |
+03B1 66   |         DB    66H,6DH,7DH,7
+03B2 6D   |
+03B3 7D   |
+03B4 07   |
+03B5 7F   |         DB    7FH,6FH,77H,7CH
+03B6 6F   |
+03B7 77   |
+03B8 7C   |
+03B9 39   |         DB    39H,5EH,79H,71H
+03BA 5E   |
+03BB 79   |
+03BC 71   |
+          | TOS:
+          | ; ТАБЛИЦА ИСХОДНЫХ ЗНАЧЕНИЙ РЕГИСТРОВ И
+
+# ===== hoja −38− (MODULE PAGE 37): tabla TOS ===============================
+          | ; ПРОГРАММА ОБРАБОТКИ ПРЕРЫВАНИЙ
+03BD EE   | ELOC:   DB    0EEH
+03BE DD   | DLOC:   DB    0DDH
+03BF CC   | CLOC:   DB    0CCH
+03C0 BB   | BLOC:   DB    0BBH
+03C1 BC0F | SPLOC:  DW    STKPTR-18
+03C3 FF   | FLOC:   DB    0FFH
+03C4 AA   | ALOC:   DB    0AAH
+          | EXIT:
+03C5 D1   |         POP   D
+03C6 C1   |         POP   B
+03C7 E1   |         POP   H
+03C8 F1   |         POP   PSW
+03C9 F9   |         SPHL
+          | HLLOC:
+03CA 213412 |       LXI   H,1234H
+03CD FB   |         EI
+03CE F5   |         PUSH  PSW
+03CF 3E01 |         MVI   A,STEPWRD
+03D1 D3FC |         OUT   DBGPORT
+03D3 F1   |         POP   PSW
+          | PCLOC:
+03D4 C34000 |       JMP   BOOT
+          | TLOC:
+03D7 0000 |         DW    0
+
+# ===== hoja −39− (MODULE PAGE 38): fin de la tabla =========================
+03D9 00   |         DB    0
+03DA 0000 |         DW    0
+03DC 00   |         DB    0
+03DD 0000 | USRST1: DW    0
+03DF 0000 | USRST2: DW    0
+03E1 0000 | USRST3: DW    0
+03E3 0000 | USRST4: DW    0
+03E5 0000 | USRST5: DW    0
+03E7 0000 | USRST6: DW    0
+          | PCEND:
+
+# ===== hoja −40− (MODULE PAGE 39): ПРОГРАММАТОР УМК ========================
+          | ; 2. ПРОГРАММАТОР У М К
+0400      |         ORG   400H
+0400 0E03 |         MVI   C,3           ; ПРИНЯТЬ ПАРАМЕТРЫ
+0402 CD1F02 |       CALL  CIADR
+0405 C1   |         POP   B
+0406 D1   |         POP   D
+0407 E1   |         POP   H
+0408 3E28 |         MVI   A,40          ; [ver DISCREPANCIAS #1]
+040A F5   |         PUSH  PSW
+          | PRLP1:
+040B E5   |         PUSH  H
+040C C5   |         PUSH  B
+          | PRLP2:
+040D 7E   |         MOV   A,M
+040E 02   |         STAX  B
+040F 03   |         INX   B
+0410 CD2F02 |       CALL  COMPA
+0413 D20D04 |       JNC   PRLP2
+0416 C1   |         POP   B
+0417 E1   |         POP   H
+0418 E3   |         XTHL
+0419 3E20 |         MVI   A,20H
+041B D3F8 |         OUT   0F8H
+041D 7D   |         MOV   A,L
+041E 1F   |         RAR
+041F 3E37 |         MVI   A,37H
+0421 DA2604 |       JC    $+5
+
+# ===== hoja −41− (MODULE PAGE 40): fin del programador =====================
+0424 3E00 |         MVI   A,0
+0426 D3F9 |         OUT   0F9H
+0428 2D   |         DCR   L
+0429 E3   |         XTHL
+042A C20B04 |       JNZ   PRLP1
+042D F1   |         POP   PSW
+042E E5   |         PUSH  H
+042F 210000 |       LXI   H,0
+0432 E3   |         XTHL
+          | PRLP3:
+0433 0A   |         LDAX  B
+0434 BE   |         CMP   M
+0435 CA3B04 |       JZ    PRLP4
+0438 E3   |         XTHL
+0439 23   |         INX   H
+043A E3   |         XTHL
+          | PRLP4:
+043B 03   |         INX   B
+043C CD2F02 |       CALL  COMPA
+043F D23304 |       JNC   PRLP3
+0442 C1   |         POP   B
+0443 CDA302 |       CALL  COADR
+0446 CDCD02 |       CALL  CI
+0449 C35A00 |       JMP   START
+          |         END
+
+# ===========================================================================
+# DISCREPANCIAS DE TRANSCRIPCIÓN
+# ===========================================================================
+#
+# #1  hoja −40−, LOC 0408, línea 1674.  El escaneo imprime la columna OBJ
+#     como «3F28», pero el enunciado fuente es «MVI A,40» y el opcode de
+#     MVI A es 3Eh, no 3Fh (3Fh es CMC, que no lleva operando). Además, con
+#     3Fh el byte 28h quedaría suelto y todo el resto del programador se
+#     desplazaría, cosa que las direcciones LOC posteriores desmienten:
+#     la siguiente instrucción está en 040A, o sea que 0408 ocupa DOS bytes.
+#     Se transcribe 3E28. Es un defecto del escaneo, no del listado.
+#
+#     (Regla general de esta transcripción: cuando la columna OBJ y la
+#     columna de fuente se contradicen, MANDA la que sea consistente con las
+#     direcciones LOC de alrededor, y la discrepancia se anota aquí.)
+
