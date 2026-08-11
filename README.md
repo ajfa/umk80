@@ -229,12 +229,14 @@ pointers, so saving and restoring the entire machine state is a struct copy.
 - **[docs/SOURCES.md](docs/SOURCES.md)** — where each document comes from,
   with its SHA256.
 
-## Licence and provenance
+## License and provenance
 
 The emulator — core, frontend, debugger, tools and tests — is original work
-and is released under the **[MIT licence](LICENSE)**.
+and is released under the **[GNU General Public License v3.0](LICENSE)**.
+Contributions require the agreement in [`CLA.md`](CLA.md); see
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-**The `rom/` directory is outside that licence.** It holds the machine's
+**The `rom/` directory is outside that license.** It holds the machine's
 monitor, transcribed from the 1986 factory listing: Soviet documentation whose
 corporate author no longer exists and over which the publisher of this
 repository holds no rights, and therefore cannot sublicense. It is included for

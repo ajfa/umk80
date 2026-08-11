@@ -15,13 +15,13 @@ else()
     add_compile_options(-Wall -Wextra -Wshadow -Wconversion -Wpedantic)
 endif()
 
-# --- Núcleo: sin dependencias, ni siquiera de la biblioteca estándar --------
+# --- Core: no dependencies, not even the standard library ------------------
 add_library(umk80core STATIC
     core/src/i8080.c
 )
 target_include_directories(umk80core PUBLIC core/include)
 
-# --- Pruebas ---------------------------------------------------------------
+# --- Tests ---------------------------------------------------------------
 enable_testing()
 
 add_executable(cpu_suite tests/cpu/cpu_suite.c)
@@ -30,7 +30,7 @@ target_link_libraries(cpu_suite PRIVATE umk80core)
 add_test(NAME cpu_suites_rapidas
          COMMAND cpu_suite ${CMAKE_CURRENT_SOURCE_DIR}/tests/cpu/suites --quick)
 
-# 8080EXM tarda varios minutos: prueba aparte, no en la tanda rápida.
+# 8080EXM takes several minutes: a separate test, not part of the quick run.
 add_test(NAME cpu_suite_8080exm
          COMMAND cpu_suite ${CMAKE_CURRENT_SOURCE_DIR}/tests/cpu/suites)
 set_tests_properties(cpu_suite_8080exm PROPERTIES TIMEOUT 3600 LABELS lenta)

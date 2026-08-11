@@ -2,19 +2,19 @@
 
 Contributions are welcome. Two things to read first, then the practical part.
 
-## Licence and CLA
+## License and CLA
 
 This project is distributed under the **GNU General Public License v3.0**
 (see [`LICENSE`](LICENSE)).
 
-Contributions require agreeing to the **Contributor Licence Agreement** in
+Contributions require agreeing to the **Contributor License Agreement** in
 [`CLA.md`](CLA.md). You keep the copyright in your work; the agreement lets the
 project keep shipping under the GPL while leaving the owner able to relicense
 the project as a whole later. Signing is one line in your pull request
 description — the CLA explains how.
 
 Note that [`rom/`](rom/PROVENANCE.md) is **not** covered by the project
-licence: it holds transcribed 1986 factory documentation. Do not submit
+license: it holds transcribed 1986 factory documentation. Do not submit
 changes that would relicense it or that would bring in material with an
 unclear origin.
 

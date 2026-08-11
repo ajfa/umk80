@@ -1,7 +1,7 @@
 # Provenance of the contents of `rom/`
 
-**This directory is not original work, and the repository's MIT licence does
-not cover it.**
+**This directory is not original work, and the repository's GPL-3.0 license
+does not cover it.**
 
 The `LICENSE` at the root covers the emulator: the core, the frontend, the
 debugger, the tools and the tests. What lives here is something else.
@@ -32,7 +32,7 @@ The program dates from 1986 and its corporate author, the ВЭФ association,
 ceased to exist along with the Soviet Union. There is no rights holder to ask
 for permission or to negotiate terms with, and whoever publishes this **holds
 no rights over that work**: they therefore cannot license it to third parties
-under MIT or anything else.
+under the GPL or anything else.
 
 It is included for **historical preservation and interoperability**: without
 the monitor, an УМК-80 emulator does not boot, and no public dump of the ROM
