@@ -1,14 +1,14 @@
-/* disasm.h — desensamblador 8080, compartido por umkdis y por el depurador
- * de umkcli. Vive en tools/ y no en core/ porque usa snprintf, y el núcleo
- * no puede depender de la biblioteca estándar.
+/* disasm.h — 8080 disassembler, shared by umkdis and by the umkcli debugger.
+ * It lives in tools/ rather than core/ because it uses snprintf, and the core
+ * cannot depend on the standard library.
  */
 #ifndef UMK80_DISASM_H
 #define UMK80_DISASM_H
 
 #include <stddef.h>
 
-/* Escribe en `out` el texto de la instrucción que empieza en mem[pc] y
- * devuelve su longitud en bytes (1, 2 o 3). `size` es el tamaño de `mem`. */
+/* Writes into `out` the text of the instruction starting at mem[pc] and
+ * returns its length in bytes (1, 2 or 3). `size` is the size of `mem`. */
 unsigned umk_disasm(const unsigned char *mem, unsigned long pc,
                     unsigned long size, char *out, size_t outn);
 

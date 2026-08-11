@@ -1,12 +1,12 @@
-/* platform.h — capa mínima de sistema para el frontend.
+/* platform.h — minimal system layer for the frontend.
  *
- * Dos realizaciones intercambiables:
- *   platform_win32.c  Win32 puro (user32 + gdi32). Objetivo primario: no
- *                     arrastra ninguna dependencia externa, el ejecutable
- *                     arranca en un Windows limpio sin copiar DLLs.
- *   platform_sdl2.c   SDL2, para Linux y macOS.
+ * Two interchangeable implementations:
+ *   platform_win32.c  plain Win32 (user32 + gdi32). Primary target: no
+ *                     external dependencies at all, the executable runs on a
+ *                     clean Windows with no DLLs to copy.
+ *   platform_sdl2.c   SDL2, for Linux and macOS.
  *
- * El núcleo del emulador no ve nada de esto.
+ * The emulator core sees none of this.
  */
 #ifndef UMK80_PLATFORM_H
 #define UMK80_PLATFORM_H
@@ -22,8 +22,8 @@ typedef enum {
     EV_MOUSEUP
 } ev_kind_t;
 
-/* Códigos de tecla normalizados: ASCII en mayúsculas para lo imprimible,
- * y por encima de 0x100 lo demás. */
+/* Normalised key codes: uppercase ASCII for printable keys, and above
+ * 0x100 for everything else. */
 #define PK_BACK   0x108
 #define PK_ENTER  0x10D
 #define PK_ESC    0x11B
@@ -33,25 +33,25 @@ typedef enum {
 typedef struct {
     ev_kind_t kind;
     int key;        /* EV_KEY*  */
-    int x, y;       /* EV_MOUSE*, en coordenadas lógicas del panel */
+    int x, y;       /* EV_MOUSE*, in the panel's logical coordinates */
 } plat_event_t;
 
-/* Prepara la consola para que el texto salga bien ANTES de abrir la ventana.
- * En Windows pone la página de códigos de salida en UTF-8, porque cmd.exe
- * arranca en la 850 o la 437 y destroza el cirílico y los acentos. En POSIX
- * no hace nada. Se llama al principio de main. */
+/* Prepares the console so text comes out right BEFORE the window opens. On
+ * Windows it sets the output code page to UTF-8, because cmd.exe starts in
+ * 850 or 437 and mangles Cyrillic and accents. On POSIX it does nothing.
+ * Called at the top of main. */
 void plat_init(void);
 
-/* Abre la ventana. `title` va en UTF-8. `lw`/`lh` es el tamaño lógico del
- * panel; el escalado a la ventana real lo hace la plataforma, y plat_poll ya
- * devuelve las coordenadas del ratón convertidas a ese espacio lógico. */
+/* Opens the window. `title` is UTF-8. `lw`/`lh` is the panel's logical size;
+ * scaling to the real window is the platform's job, and plat_poll already
+ * returns mouse coordinates converted into that logical space. */
 int  plat_open(const char *title, int lw, int lh, int scale_num, int scale_den);
 void plat_close(void);
 
-/* Devuelve 1 y rellena `ev` si había un evento; 0 si no hay más. */
+/* Returns 1 and fills `ev` if there was an event; 0 if there are no more. */
 int  plat_poll(plat_event_t *ev);
 
-/* Vuelca el framebuffer lógico a la ventana, escalando. */
+/* Blits the logical framebuffer to the window, scaling. */
 void plat_present(const uint32_t *px);
 
 void     plat_sleep_ms(unsigned ms);

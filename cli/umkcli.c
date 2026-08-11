@@ -1,17 +1,17 @@
-/* umkcli.c — modo sin ventana y depurador del УМК-80.
+/* umkcli.c — headless mode and debugger for the УМК-80.
  *
- * Cubre tres entregables del encargo:
- *   3. modo headless: cargar un binario en una dirección, ejecutar N ciclos
- *      y volcar registros, memoria y estado del display;
- *   5. depurador: puntos de ruptura, paso por instrucción y por ciclo de
- *      máquina, inspección y edición de registros y memoria;
- *   6. guardar y restaurar el estado completo de la máquina.
+ * It covers three things:
+ *   - headless operation: load a binary at an address, run N cycles and dump
+ *     registers, memory and display state;
+ *   - debugging: breakpoints, stepping by instruction and by machine cycle,
+ *     inspecting and editing registers and memory;
+ *   - saving and restoring the entire machine state.
  *
- * Además carga y escribe Intel HEX (entregable 4).
+ * It also reads and writes Intel HEX.
  *
- * Se puede usar de dos maneras:
- *   - por lotes, encadenando órdenes:      umkcli -c "load p.bin 0800" -c "run 1e6" -c regs
- *   - interactivo, sin órdenes en la línea: umkcli --rom rom/monitor.bin
+ * Two ways to use it:
+ *   - batch, chaining commands:   umkcli -c "load p.bin 0800" -c "run 1e6" -c regs
+ *   - interactive, with no commands on the line: umkcli --rom rom/monitor.bin
  */
 
 #include "umk80/umk80.h"
@@ -30,15 +30,16 @@ static uint16_t breakpoints[MAX_BP];
 static int      nbp;
 static int      quit_requested;
 
-/* --- utilidades ------------------------------------------------------------- */
+/* --- helpers ------------------------------------------------------------- */
 
 static long parse_num(const char *s, long def)
 {
     char *e;
     long v;
     if (!s || !*s) return def;
-    /* Se admite 0x1234, 1234H y decimal. Sin prefijo se toma hexadecimal,
-     * que es lo natural delante de un panel que sólo habla en hex. */
+    /* 0x1234, 1234H and decimal are accepted. With no prefix, hexadecimal
+     * is assumed, which is the natural thing in front of a panel that only
+     * speaks hex. */
     if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) return strtol(s + 2, NULL, 16);
     v = strtol(s, &e, 16);
     if (*e == 'H' || *e == 'h' || *e == '\0') return v;
@@ -68,7 +69,7 @@ static void show_regs(void)
     printf("A=%02X F=%02X[%s] B=%02X C=%02X D=%02X E=%02X H=%02X L=%02X\n",
            m.cpu.a, m.cpu.f, flags_text(m.cpu.f),
            m.cpu.b, m.cpu.c, m.cpu.d, m.cpu.e, m.cpu.h, m.cpu.l);
-    printf("PC=%04X SP=%04X  INTE=%d HLTA=%d  ciclos=%llu\n",
+    printf("PC=%04X SP=%04X  INTE=%d HLTA=%d  cycles=%llu\n",
            m.cpu.pc, m.cpu.sp, m.cpu.inte ? 1 : 0, m.cpu.halted ? 1 : 0,
            (unsigned long long)m.cpu.cycles);
     printf("PC:  %04X  %s\n", m.cpu.pc, txt);
@@ -93,8 +94,8 @@ static void show_mem(uint16_t addr, unsigned len)
     }
 }
 
-/* Dibuja los seis indicadores en tres líneas de texto: en modo sin ventana
- * es la única forma de ver lo que muestra la máquina. */
+/* Draws the six displays as three lines of text: in headless mode it is the
+ * only way to see what the machine is showing. */
 static void show_display(void)
 {
     uint8_t pat[UMK_DIGITS];
@@ -118,15 +119,15 @@ static void show_display(void)
                                  (p & 0x08u) ? '_' : ' ',
                                  (p & 0x04u) ? '|' : ' ');
             printf(" ");
-            if (d == 3u) printf("  ");      /* separación АДРЕС | ДАННЫЕ */
+            if (d == 3u) printf("  ");      /* АДРЕС | ДАННЫЕ separation */
         }
         putchar('\n');
     }
-    printf("  patrón:");
+    printf("  pattern:");
     for (d = 0; d < UMK_DIGITS; d++) printf(" %02X", pat[d]);
-    printf("   (izquierda -> derecha)\n");
+    printf("   (left -> right)\n");
 
-    printf("  brillo relativo por dígito (0..255), segmentos A..G:\n");
+    printf("  brightness relative to each digit (0..255), segments A..G:\n");
     for (d = 0; d < UMK_DIGITS; d++) {
         unsigned s;
         printf("    %u:", d);
@@ -146,15 +147,15 @@ static void show_panel(void)
     for (i = 7; i >= 0; i--)
         if (m.panel.status & (1u << i)) printf("%s ", NAMES[i]);
     putchar('\n');
-    printf("avería +5V=%d -5V=%d +12V=%d   (encendido = esa tensión FALTA)\n",
+    printf("fault +5V=%d -5V=%d +12V=%d   (lit = that rail is MISSING)\n",
            m.panel.fault_p5, m.panel.fault_m5, m.panel.fault_p12);
-    printf("РБ/ШГ=%s  КМ/ЦК=%s  puerto 0FCh=%02X\n",
-           umk_get_switch(&m, UMK_SW_STEP)  ? "enclavado" : "suelto",
-           umk_get_switch(&m, UMK_SW_CYCLE) ? "enclavado" : "suelto",
+    printf("РБ/ШГ=%s  КМ/ЦК=%s  port 0FCh=%02X\n",
+           umk_get_switch(&m, UMK_SW_STEP)  ? "latched" : "released",
+           umk_get_switch(&m, UMK_SW_CYCLE) ? "latched" : "released",
            m.step.dbg_port);
 }
 
-/* --- ficheros ---------------------------------------------------------------- */
+/* --- files ---------------------------------------------------------------- */
 
 static int load_bin(const char *path, uint16_t addr, int into_rom)
 {
@@ -166,14 +167,14 @@ static int load_bin(const char *path, uint16_t addr, int into_rom)
     fclose(f);
     if (into_rom) {
         if (!umk_load_rom(&m, addr, buf, n)) {
-            printf("no cabe en el ПЗУ\n");
+            printf("does not fit in the ROM\n");
             return 0;
         }
     } else {
         umk_load_ram(&m, addr, buf, n);
     }
-    printf("%s: %lu bytes en %04X (%s)\n", path, (unsigned long)n, addr,
-           into_rom ? "ПЗУ" : "ОЗУ");
+    printf("%s: %lu bytes at %04X (%s)\n", path, (unsigned long)n, addr,
+           into_rom ? "ROM" : "RAM");
     return 1;
 }
 
@@ -204,7 +205,7 @@ static int load_hex(const char *path)
         if (line[0] != ':') continue;
 
         len  = hexb(line + 1);
-        if (len < 0) { printf("línea %d: registro ilegible\n", lineno); fclose(f); return 0; }
+        if (len < 0) { printf("line %d: unreadable record\n", lineno); fclose(f); return 0; }
         addr = (unsigned)((hexb(line + 3) << 8) | hexb(line + 5));
         type = hexb(line + 7);
 
@@ -216,16 +217,16 @@ static int load_hex(const char *path)
         }
         want = hexb(line + 9 + len * 2);
         if (((sum + want) & 0xFF) != 0) {
-            printf("línea %d: suma de verificación incorrecta\n", lineno);
+            printf("line %d: bad checksum\n", lineno);
             fclose(f);
             return 0;
         }
         if (type == 0) total += (unsigned long)len;
         else if (type == 1) break;
-        else printf("línea %d: registro de tipo %02X ignorado\n", lineno, type);
+        else printf("line %d: record type %02X ignored\n", lineno, type);
     }
     fclose(f);
-    printf("%s: %lu bytes cargados (Intel HEX)\n", path, total);
+    printf("%s: %lu bytes loaded (Intel HEX)\n", path, total);
     return 1;
 }
 
@@ -236,7 +237,7 @@ static int save_bin(const char *path, uint16_t addr, unsigned len)
     if (!f) { perror(path); return 0; }
     for (i = 0; i < len; i++) fputc(umk_peek(&m, (uint16_t)(addr + i)), f);
     fclose(f);
-    printf("%s: %u bytes desde %04X\n", path, len, addr);
+    printf("%s: %u bytes from %04X\n", path, len, addr);
     return 1;
 }
 
@@ -259,11 +260,11 @@ static int save_hex(const char *path, uint16_t addr, unsigned len)
     }
     fprintf(f, ":00000001FF\n");
     fclose(f);
-    printf("%s: %u bytes desde %04X (Intel HEX)\n", path, len, addr);
+    printf("%s: %u bytes from %04X (Intel HEX)\n", path, len, addr);
     return 1;
 }
 
-/* --- puntos de ruptura -------------------------------------------------------- */
+/* --- breakpoints -------------------------------------------------------- */
 
 static int bp_hit(uint16_t pc)
 {
@@ -272,7 +273,7 @@ static int bp_hit(uint16_t pc)
     return 0;
 }
 
-/* --- teclas -------------------------------------------------------------------- */
+/* --- keys -------------------------------------------------------------------- */
 
 typedef struct { const char *name; int col, row; } keyname_t;
 
@@ -300,39 +301,39 @@ static int press_key(const char *name)
             return 1;
         }
     }
-    printf("tecla desconocida: %s\n", name);
+    printf("unknown key: %s\n", name);
     return 0;
 }
 
-/* --- órdenes -------------------------------------------------------------------- */
+/* --- commands -------------------------------------------------------------------- */
 
 static void usage(void)
 {
     printf(
-"Órdenes (los números son hexadecimales salvo que lleven 0x o sufijo):\n"
-"  rom <f> [off]        carga imagen de ПЗУ\n"
-"  load <f> [dir]       carga .bin en ОЗУ (por omisión 0800)\n"
-"  loadhex <f>          carga Intel HEX\n"
-"  save <f> <dir> <n>   vuelca memoria a .bin\n"
-"  savehex <f> <dir> <n>\n"
-"  run [ciclos]         corre hasta el tope o hasta un punto de ruptura\n"
-"  go <dir> [ciclos]    fija PC y corre\n"
-"  step [n]             n instrucciones (por omisión 1)\n"
-"  cycle [n]            n ciclos de máquina\n"
-"  reset                pulsador СБ\n"
-"  int                  pulsador ПР (RST 7)\n"
-"  key <nombre>         pulsa y suelta: 0..F, P, RG, ST, KS, ZK, PM, SPACE, VP\n"
-"  keys <cadena>        varias seguidas, separadas por comas\n"
-"  sw step|cycle on|off РБ/ШГ y КМ/ЦК\n"
-"  shg                  pulsador ШГ\n"
-"  regs                 registros y la instrucción en PC\n"
-"  reg <r> <v>          fija A B C D E H L F PC SP\n"
-"  mem <dir> [n]        volcado hexadecimal\n"
-"  poke <dir> <b>...    escribe bytes\n"
-"  dis [dir] [n]        desensambla\n"
-"  bp <dir> | bp list | bp del <dir> | bp clear\n"
-"  display              lo que muestran los seis indicadores\n"
-"  panel                LEDs АДРЕС, ДАННЫЕ, СОСТОЯНИЕ y conmutadores\n"
+"Commands (numbers are hexadecimal unless prefixed 0x or suffixed):\n"
+"  rom <f> [off]        load a ROM image\n"
+"  load <f> [addr]      load a .bin into RAM (default 0800)\n"
+"  loadhex <f>          load Intel HEX\n"
+"  save <f> <addr> <n>  dump memory to a .bin\n"
+"  savehex <f> <addr> <n>\n"
+"  run [cycles]         run to the budget or to a breakpoint\n"
+"  go <addr> [cycles]   set PC and run\n"
+"  step [n]             n instructions (default 1)\n"
+"  cycle [n]            n machine cycles\n"
+"  reset                the СБ button\n"
+"  int                  the ПР button (RST 7)\n"
+"  key <name>           press and release: 0..F, P, RG, ST, KS, ZK, PM, SPACE, VP\n"
+"  keys <list>          several in a row, comma separated\n"
+"  sw step|cycle on|off РБ/ШГ and КМ/ЦК\n"
+"  shg                  the ШГ button\n"
+"  regs                 registers and the instruction at PC\n"
+"  reg <r> <v>          set A B C D E H L F PC SP\n"
+"  mem <addr> [n]       hexadecimal dump\n"
+"  poke <addr> <b>...   write bytes\n"
+"  dis [addr] [n]       disassemble\n"
+"  bp <addr> | bp list | bp del <addr> | bp clear\n"
+"  display              what the six displays are showing\n"
+"  panel                the АДРЕС, ДАННЫЕ and СОСТОЯНИЕ LEDs and the switches\n"
 "  state save <f> | state load <f>\n"
 "  help | quit\n");
 }
@@ -349,7 +350,7 @@ static void set_reg(const char *r, long v)
     else if (!strcmp(r,"F"))  m.cpu.f = (uint8_t)((v & I8080_F_MASK) | I8080_F_ONE);
     else if (!strcmp(r,"PC")) m.cpu.pc = (uint16_t)v;
     else if (!strcmp(r,"SP")) m.cpu.sp = (uint16_t)v;
-    else { printf("registro desconocido: %s\n", r); return; }
+    else { printf("unknown register: %s\n", r); return; }
     printf("%s = %lX\n", r, v);
 }
 
@@ -361,17 +362,17 @@ static void do_run(uint64_t budget)
         umk_step_instruction(&m);
         steps++;
         if (bp_hit(m.cpu.pc)) {
-            printf("punto de ruptura en %04X tras %lu instrucciones\n",
+            printf("breakpoint at %04X after %lu instructions\n",
                    m.cpu.pc, steps);
             show_regs();
             return;
         }
         if (m.cpu.halted && !m.cpu.int_pending) {
-            printf("HLT en %04X tras %lu instrucciones\n", m.cpu.pc, steps);
+            printf("HLT at %04X after %lu instructions\n", m.cpu.pc, steps);
             return;
         }
     }
-    printf("%llu ciclos consumidos (%lu instrucciones)\n",
+    printf("%llu cycles consumed (%lu instructions)\n",
            (unsigned long long)(m.cpu.cycles - start), steps);
 }
 
@@ -389,7 +390,7 @@ static void do_dis(uint16_t addr, unsigned count)
             if (k < len) printf("%02X ", buf[addr + k]);
             else printf("   ");
         }
-        printf(" %s%s\n", txt, bp_hit(addr) ? "   <- punto de ruptura" : "");
+        printf(" %s%s\n", txt, bp_hit(addr) ? "   <- breakpoint" : "");
         addr = (uint16_t)(addr + len);
     }
 }
@@ -403,7 +404,7 @@ static void execute(char *line)
     if (!n) return;
     if (tok[0][0] == '#' || tok[0][0] == ';') return;
 
-    /* las órdenes en minúsculas, los argumentos tal cual */
+    /* commands lowercased, arguments left as typed */
     { int i; for (i = 0; tok[0][i]; i++) tok[0][i] = (char)tolower((unsigned char)tok[0][i]); }
 
     if (!strcmp(tok[0], "help") || !strcmp(tok[0], "?")) usage();
@@ -434,7 +435,7 @@ static void execute(char *line)
             bool last = umk_step_machine_cycle(&m);
             printf("АДРЕС=%04X ДАННЫЕ=%02X СОСТОЯНИЕ=%02X%s\n",
                    m.panel.address, m.panel.data, m.panel.status,
-                   last ? "   <- fin de instrucción" : "");
+                   last ? "   <- end of instruction" : "");
         }
     }
     else if (!strcmp(tok[0], "reset")) { umk_reset(&m); printf("СБ\n"); }
@@ -449,10 +450,10 @@ static void execute(char *line)
         int on = !strcmp(tok[2], "on");
         if (!strcmp(tok[1], "step"))       umk_set_switch(&m, UMK_SW_STEP, on);
         else if (!strcmp(tok[1], "cycle")) umk_set_switch(&m, UMK_SW_CYCLE, on);
-        else { printf("conmutador desconocido: %s\n", tok[1]); return; }
+        else { printf("unknown switch: %s\n", tok[1]); return; }
         printf("РБ/ШГ=%s КМ/ЦК=%s\n",
-               umk_get_switch(&m, UMK_SW_STEP) ? "enclavado" : "suelto",
-               umk_get_switch(&m, UMK_SW_CYCLE) ? "enclavado" : "suelto");
+               umk_get_switch(&m, UMK_SW_STEP) ? "latched" : "released",
+               umk_get_switch(&m, UMK_SW_CYCLE) ? "latched" : "released");
     }
     else if (!strcmp(tok[0], "regs") || !strcmp(tok[0], "r")) show_regs();
     else if (!strcmp(tok[0], "reg") && n >= 3) {
@@ -467,7 +468,7 @@ static void execute(char *line)
         uint16_t a = (uint16_t)parse_num(tok[1], 0);
         int i;
         for (i = 2; i < n; i++) umk_poke(&m, (uint16_t)(a + i - 2), (uint8_t)parse_num(tok[i], 0));
-        printf("%d bytes en %04X\n", n - 2, a);
+        printf("%d bytes at %04X\n", n - 2, a);
     }
     else if (!strcmp(tok[0], "dis"))
         do_dis((uint16_t)(n > 1 ? parse_num(tok[1], 0) : m.cpu.pc),
@@ -475,19 +476,19 @@ static void execute(char *line)
     else if (!strcmp(tok[0], "bp")) {
         if (n == 1 || !strcmp(tok[1], "list")) {
             int i;
-            if (!nbp) printf("sin puntos de ruptura\n");
+            if (!nbp) printf("no breakpoints set\n");
             for (i = 0; i < nbp; i++) printf("  %04X\n", breakpoints[i]);
-        } else if (!strcmp(tok[1], "clear")) { nbp = 0; printf("borrados\n"); }
+        } else if (!strcmp(tok[1], "clear")) { nbp = 0; printf("cleared\n"); }
         else if (!strcmp(tok[1], "del") && n >= 3) {
             uint16_t a = (uint16_t)parse_num(tok[2], 0);
             int i, j = 0;
             for (i = 0; i < nbp; i++) if (breakpoints[i] != a) breakpoints[j++] = breakpoints[i];
             nbp = j;
-            printf("quitado %04X\n", a);
+            printf("removed %04X\n", a);
         } else if (nbp < MAX_BP) {
             breakpoints[nbp++] = (uint16_t)parse_num(tok[1], 0);
-            printf("punto de ruptura en %04X\n", breakpoints[nbp - 1]);
-        } else printf("no caben más de %d puntos de ruptura\n", MAX_BP);
+            printf("breakpoint at %04X\n", breakpoints[nbp - 1]);
+        } else printf("no room for more than %d breakpoints\n", MAX_BP);
     }
     else if (!strcmp(tok[0], "display") || !strcmp(tok[0], "d")) show_display();
     else if (!strcmp(tok[0], "panel")) show_panel();
@@ -495,12 +496,12 @@ static void execute(char *line)
         static unsigned char buf[sizeof(umk_machine_t)];
         FILE *f;
         if (!strcmp(tok[1], "save")) {
-            if (!umk_state_save(&m, buf, sizeof buf)) { printf("no se pudo guardar\n"); return; }
+            if (!umk_state_save(&m, buf, sizeof buf)) { printf("could not save\n"); return; }
             f = fopen(tok[2], "wb");
             if (!f) { perror(tok[2]); return; }
             fwrite(buf, 1, umk_state_size(), f);
             fclose(f);
-            printf("estado guardado en %s (%lu bytes)\n", tok[2],
+            printf("state saved to %s (%lu bytes)\n", tok[2],
                    (unsigned long)umk_state_size());
         } else if (!strcmp(tok[1], "load")) {
             size_t got;
@@ -509,14 +510,14 @@ static void execute(char *line)
             got = fread(buf, 1, sizeof buf, f);
             fclose(f);
             if (got != umk_state_size() || !umk_state_load(&m, buf, got))
-                printf("el fichero no es un estado válido de esta versión\n");
-            else printf("estado restaurado desde %s\n", tok[2]);
-        } else printf("state save|load <fichero>\n");
+                printf("the file is not a valid state for this version\n");
+            else printf("state restored from %s\n", tok[2]);
+        } else printf("state save|load <file>\n");
     }
-    else printf("orden desconocida: %s  (help para la lista)\n", tok[0]);
+    else printf("unknown command: %s  (help lists them)\n", tok[0]);
 }
 
-/* --- programa principal ---------------------------------------------------------- */
+/* --- main program ---------------------------------------------------------- */
 
 int main(int argc, char **argv)
 {
@@ -541,7 +542,7 @@ int main(int argc, char **argv)
         } else if (!strcmp(argv[i], "--rev1")) {
             umk_init(&m, UMK_REV1);
         } else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
-            printf("uso: %s [--rom <f>] [--rev1] [-c \"orden\"]... [--script <f>]\n\n",
+            printf("usage: %s [--rom <f>] [--rev1] [-c \"command\"]... [--script <f>]\n\n",
                    argv[0]);
             usage();
             return 0;
@@ -562,7 +563,7 @@ int main(int argc, char **argv)
     }
 
     if (interactive) {
-        printf("УМК-80 — depurador. «help» para la lista de órdenes.\n");
+        printf("УМК-80 debugger. Type \"help\" for the list of commands.\n");
         while (!quit_requested) {
             printf("umk> ");
             fflush(stdout);

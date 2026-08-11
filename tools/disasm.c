@@ -1,7 +1,7 @@
-/* disasm.c — véase disasm.h. Tablas y decodificación del 8080.
+/* disasm.c — see disasm.h. 8080 tables and decoding.
  *
- * Los diez opcodes no documentados se desensamblan con su semántica real
- * (NOP, JMP, RET, CALL); quien quiera distinguirlos tiene
+ * The ten undocumented opcodes are disassembled with their real semantics
+ * (NOP, JMP, RET, CALL); anyone wanting to tell them apart has
  * i8080_opcode_undocumented().
  */
 

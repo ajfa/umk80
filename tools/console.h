@@ -1,12 +1,11 @@
-/* console.h — pone la consola en UTF-8 en Windows.
+/* console.h — puts the console into UTF-8 on Windows.
  *
- * Todo el texto de este proyecto está en UTF-8 (mensajes en español con
- * acentos, rótulos en cirílico como АДРЕС o ПЗУ). Una consola de Windows
- * arranca en la página de códigos 850 o 437 y esos bytes salen como
- * «ðúð£ðÜ-80». Basta con avisar a la consola de que lo que va a recibir es
- * UTF-8.
+ * All the text in this project is UTF-8, including Cyrillic labels such as
+ * АДРЕС or ПЗУ. A Windows console starts in code page 850 or 437 and those
+ * bytes come out as «ðúð£ðÜ-80». Telling the console what it is about to
+ * receive is enough.
  *
- * En POSIX no hace nada: allí la consola ya es UTF-8.
+ * On POSIX it does nothing: the console is already UTF-8 there.
  */
 #ifndef UMK80_CONSOLE_H
 #define UMK80_CONSOLE_H

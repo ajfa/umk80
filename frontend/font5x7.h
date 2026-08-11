@@ -1,13 +1,12 @@
-/* font5x7.h — tipografía 5x7 empotrada, con las letras cirílicas que hacen
- * falta para rotular el panel del УМК-80.
+/* font5x7.h — embedded 5x7 typeface, including the Cyrillic letters needed
+ * to label the УМК-80 panel.
  *
- * Sin dependencias: ni fuentes del sistema, ni bibliotecas de texto. Las
- * cadenas se escriben en UTF-8 tal cual («АДРЕС», «СОСТОЯНИЕ») y aquí se
- * decodifican.
+ * No dependencies: no system fonts, no text libraries. Strings are written in
+ * UTF-8 as they are («АДРЕС», «СОСТОЯНИЕ») and decoded here.
  *
- * Muchas mayúsculas cirílicas comparten trazo con la latina (А=A, В=B, Е=E,
- * К=K, М=M, Н=H, О=O, Р=P, С=C, Т=T, Х=X), así que sólo se dibujan las que
- * son realmente distintas: Б Г Д З И Л П У Ф Ц Ч Ш Ы Э Я.
+ * Many Cyrillic capitals share their shape with a Latin one (А=A, В=B, Е=E,
+ * К=K, М=M, Н=H, О=O, Р=P, С=C, Т=T, Х=X), so only the genuinely different
+ * ones are drawn: Б Г Д З И Л П У Ф Ц Ч Ш Ы Э Я.
  */
 #ifndef UMK80_FONT5X7_H
 #define UMK80_FONT5X7_H
@@ -15,7 +14,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Cada glifo son 7 filas de 5 bits; el bit 4 es la columna de la izquierda. */
+/* Each glyph is 7 rows of 5 bits; bit 4 is the leftmost column. */
 typedef struct { uint8_t rows[7]; } glyph_t;
 
 enum {
@@ -30,7 +29,7 @@ enum {
 };
 
 static const glyph_t FONT5X7[G_COUNT] = {
-/* espacio */ {{0x00,0x00,0x00,0x00,0x00,0x00,0x00}},
+/* space */ {{0x00,0x00,0x00,0x00,0x00,0x00,0x00}},
 /* 0 */ {{0x0E,0x11,0x13,0x15,0x19,0x11,0x0E}},
 /* 1 */ {{0x04,0x0C,0x04,0x04,0x04,0x04,0x0E}},
 /* 2 */ {{0x0E,0x11,0x01,0x02,0x04,0x08,0x1F}},
@@ -65,7 +64,7 @@ static const glyph_t FONT5X7[G_COUNT] = {
 /* V */ {{0x11,0x11,0x11,0x11,0x11,0x0A,0x04}},
 /* W */ {{0x11,0x11,0x11,0x15,0x15,0x1B,0x11}},
 /* X */ {{0x11,0x11,0x0A,0x04,0x0A,0x11,0x11}},
-/* Y */ {{0x11,0x11,0x11,0x0F,0x01,0x01,0x0E}},   /* sirve también para У */
+/* Y */ {{0x11,0x11,0x11,0x0F,0x01,0x01,0x0E}},   /* also serves for У */
 /* Z */ {{0x1F,0x01,0x02,0x04,0x08,0x10,0x1F}},
 /* Б */ {{0x1F,0x10,0x10,0x1E,0x11,0x11,0x1E}},
 /* Г */ {{0x1F,0x10,0x10,0x10,0x10,0x10,0x10}},
@@ -88,11 +87,11 @@ static const glyph_t FONT5X7[G_COUNT] = {
 /* / */ {{0x01,0x02,0x02,0x04,0x08,0x08,0x10}},
 /* . */ {{0x00,0x00,0x00,0x00,0x00,0x0C,0x0C}},
 /* ? */ {{0x0E,0x11,0x01,0x02,0x04,0x00,0x04}},
-/* _ */ {{0x00,0x00,0x00,0x00,0x11,0x11,0x1F}}   /* símbolo de la tecla «пробел» */
+/* _ */ {{0x00,0x00,0x00,0x00,0x11,0x11,0x1F}}   /* symbol for the «пробел» (space) key */
 };
 
-/* Un punto de código Unicode -> índice de glifo. Devuelve G_SPACE para lo
- * que no esté. */
+/* A Unicode code point -> glyph index. Returns G_SPACE for anything not
+ * present. */
 static int font_glyph(uint32_t cp)
 {
     if (cp >= '0' && cp <= '9') return G_0 + (int)(cp - '0');
@@ -106,7 +105,7 @@ static int font_glyph(uint32_t cp)
         case '.':    return G_DOT;
         case '?':    return G_QUERY;
         case '_':    return G_UNDER;
-        /* Cirílicas que coinciden de trazo con una latina */
+        /* Cyrillic letters whose shape matches a Latin one */
         case 0x0410: return G_A;      /* А */
         case 0x0412: return G_B;      /* В */
         case 0x0415: return G_E;      /* Е */
@@ -118,7 +117,7 @@ static int font_glyph(uint32_t cp)
         case 0x0421: return G_C;      /* С */
         case 0x0422: return G_T;      /* Т */
         case 0x0425: return G_X;      /* Х */
-        /* Cirílicas con trazo propio */
+        /* Cyrillic letters with their own shape */
         case 0x0411: return G_BE;     /* Б */
         case 0x0413: return G_GHE;    /* Г */
         case 0x0414: return G_DE;     /* Д */
@@ -139,7 +138,7 @@ static int font_glyph(uint32_t cp)
     }
 }
 
-/* Decodifica un carácter UTF-8 y avanza el puntero. */
+/* Decodes one UTF-8 character and advances the pointer. */
 static uint32_t utf8_next(const char **p)
 {
     const unsigned char *s = (const unsigned char *)*p;
@@ -156,7 +155,7 @@ static uint32_t utf8_next(const char **p)
     return cp;
 }
 
-/* Ancho en píxeles de una cadena a escala `sc` (5 px de glifo + 1 de hueco). */
+/* Pixel width of a string at scale `sc` (5 px of glyph + 1 of gap). */
 static int font_width(const char *s, int sc)
 {
     int n = 0;

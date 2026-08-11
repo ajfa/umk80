@@ -1,19 +1,18 @@
-/* cpu_suite.c — arnés CP/M mínimo para las suites de validación del 8080.
+/* cpu_suite.c — minimal CP/M harness for the 8080 validation suites.
  *
- * Criterio de aceptación 1 del encargo: TST8080, 8080PRE, CPUTEST y 8080EXM.
+ * Acceptance criterion 1: TST8080, 8080PRE, CPUTEST and 8080EXM.
  *
- * Las cuatro suites son programas CP/M (.COM) que se cargan en 0x0100 y usan
- * dos servicios del BDOS: la función 2 (imprimir el carácter que hay en E) y
- * la función 9 (imprimir la cadena terminada en '$' que apunta DE). En vez de
- * interceptar el PC se parchean dos puntos de la memoria baja, que es lo que
- * hace el propio CP/M:
+ * All four suites are CP/M (.COM) programs loaded at 0x0100 that use two BDOS
+ * services: function 2 (print the character in E) and function 9 (print the
+ * '$'-terminated string pointed to by DE). Rather than intercepting the PC,
+ * two spots in low memory are patched, which is what CP/M itself does:
  *
- *   0x0000:  OUT 0    -> el programa terminó (salto a WBOOT)
- *   0x0005:  IN 0     -> llamada al BDOS
+ *   0x0000:  OUT 0    -> the program finished (jump to WBOOT)
+ *   0x0005:  IN 0     -> BDOS call
  *            RET
  *
- * Esto no forma parte del núcleo: es una herramienta de prueba y sí usa la
- * biblioteca estándar.
+ * This is not part of the core: it is a test tool and it does use the
+ * standard library.
  */
 
 #include "umk80/i8080.h"
@@ -33,9 +32,9 @@ typedef struct {
     i8080_t *cpu;
 } host_t;
 
-/* CPUTEST emite algún byte NUL entre el texto. Se imprime tal cual, pero no
- * se guarda en el búfer de captura: un NUL en medio truncaría el strstr con
- * el que se comprueba el resultado. */
+/* CPUTEST emits the odd NUL byte among the text. It is printed as is, but
+ * not stored in the capture buffer: a NUL in the middle would truncate the
+ * strstr used to check the result. */
 static void emit(host_t *h, char ch)
 {
     if (ch != '\0' && h->out_len + 1u < OUT_MAX) h->out[h->out_len++] = ch;
@@ -59,15 +58,15 @@ static uint8_t host_in(void *ud, uint8_t port)
     host_t *h = (host_t *)ud;
     i8080_t *c = h->cpu;
 
-    if (port == 0u) {                      /* llamada al BDOS */
-        if (c->c == 9u) {                  /* imprimir cadena terminada en '$' */
+    if (port == 0u) {                      /* BDOS call */
+        if (c->c == 9u) {                  /* print '$'-terminated string */
             uint16_t p = (uint16_t)((c->d << 8) | c->e);
             unsigned guard = 0;
             while (h->mem[p] != '$' && guard++ < MEM_SIZE) {
                 emit(h, (char)h->mem[p]);
                 p = (uint16_t)(p + 1u);
             }
-        } else if (c->c == 2u) {           /* imprimir un carácter */
+        } else if (c->c == 2u) {           /* print one character */
             emit(h, (char)c->e);
         }
     }
@@ -84,14 +83,14 @@ static void host_out(void *ud, uint8_t port, uint8_t val)
 
 typedef struct {
     const char *file;
-    const char *expect;      /* debe aparecer en la salida */
-    const char *forbid;      /* no debe aparecer (NULL = sin restricción) */
+    const char *expect;      /* must appear in the output */
+    const char *forbid;      /* must not appear (NULL = no restriction) */
     uint64_t    max_cycles;
 } suite_t;
 
 static int run_suite(const char *dir, const suite_t *s)
 {
-    static host_t h;                       /* 64 KB + búfer: fuera de la pila */
+    static host_t h;                       /* 64 KB + buffer: keep off the stack */
     i8080_t cpu;
     i8080_bus_t bus;
     char path[512];
@@ -105,13 +104,13 @@ static int run_suite(const char *dir, const suite_t *s)
     snprintf(path, sizeof path, "%s/%s", dir, s->file);
     f = fopen(path, "rb");
     if (!f) {
-        fprintf(stderr, "no se pudo abrir %s\n", path);
+        fprintf(stderr, "could not open %s\n", path);
         return 0;
     }
     n = fread(h.mem + 0x0100, 1u, MEM_SIZE - 0x0100u, f);
     fclose(f);
 
-    /* Parches de la memoria baja de CP/M. */
+    /* CP/M low-memory patches. */
     h.mem[0x0000] = 0xD3; h.mem[0x0001] = 0x00;                 /* OUT 0  */
     h.mem[0x0005] = 0xDB; h.mem[0x0006] = 0x00; h.mem[0x0007] = 0xC9; /* IN 0 / RET */
 
@@ -126,29 +125,29 @@ static int run_suite(const char *dir, const suite_t *s)
 
     while (!h.finished && cpu.cycles < s->max_cycles) {
         if (cpu.halted) {
-            printf("\n[HLT en 0x%04X — la suite aborta]\n", cpu.pc);
+            printf("\n[HLT at 0x%04X - the suite aborts]\n", cpu.pc);
             break;
         }
         i8080_step(&cpu, &bus);
     }
 
     h.out[h.out_len] = '\0';
-    printf("\n--- %llu ciclos T ---\n", (unsigned long long)cpu.cycles);
+    printf("\n--- %llu T states ---\n", (unsigned long long)cpu.cycles);
 
     ok = 1;
     if (s->expect && !strstr(h.out, s->expect)) {
-        printf("FALLO: no aparece \"%s\"\n", s->expect);
+        printf("FAIL: \"%s\" does not appear\n", s->expect);
         ok = 0;
     }
     if (s->forbid && strstr(h.out, s->forbid)) {
-        printf("FALLO: aparece \"%s\"\n", s->forbid);
+        printf("FAIL: \"%s\" appears\n", s->forbid);
         ok = 0;
     }
     if (!h.finished && cpu.cycles >= s->max_cycles) {
-        printf("FALLO: se agotó el presupuesto de ciclos\n");
+        printf("FAIL: the cycle budget ran out\n");
         ok = 0;
     }
-    printf("%s: %s\n", s->file, ok ? "OK" : "FALLO");
+    printf("%s: %s\n", s->file, ok ? "OK" : "FAIL");
     return ok;
 }
 
@@ -165,12 +164,12 @@ int main(int argc, char **argv)
     size_t i, count = sizeof suites / sizeof suites[0];
     int all_ok = 1;
 
-    if (only_quick) count = 3;   /* 8080EXM aparte: tarda minutos */
+    if (only_quick) count = 3;   /* 8080EXM separately: it takes minutes */
 
     for (i = 0; i < count; i++) {
         if (!run_suite(dir, &suites[i])) all_ok = 0;
     }
 
-    printf("\n===== %s =====\n", all_ok ? "TODAS LAS SUITES PASAN" : "HAY FALLOS");
+    printf("\n===== %s =====\n", all_ok ? "ALL SUITES PASS" : "FAILURES PRESENT");
     return all_ok ? 0 : 1;
 }

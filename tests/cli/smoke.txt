@@ -1,0 +1,37 @@
+# Smoke test for the headless mode and the debugger.
+# Run with:  umkcli --rom rom/monitor.bin --script tests/cli/smoke.txt
+
+# The monitor boots and shows the "-" ready prompt.
+run 400000
+display
+
+# Enter the criterion-2 program by typing on the real panel.
+keys P,0,8,0,0,SPACE,3,E,SPACE,A,A,SPACE,C,3,SPACE,0,0,SPACE,0,8,SPACE,VP
+mem 0800 8
+dis 0800 2
+
+# Breakpoint on the second byte of the user program.
+bp 0802
+keys ST,0,8,0,0,VP
+run 200000
+regs
+panel
+
+# Save and restore the entire state.
+state save build/smoke_state.bin
+reg A 00
+state load build/smoke_state.bin
+regs
+
+# Intel HEX round trip.
+savehex build/smoke.hex 0800 8
+poke 0800 00 00 00 00 00
+loadhex build/smoke.hex
+mem 0800 8
+
+# Machine-cycle stepping from the panel.
+bp clear
+sw step on
+sw cycle on
+cycle 4
+quit

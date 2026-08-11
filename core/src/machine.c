@@ -1,7 +1,7 @@
-/* machine.c — la máquina УМК-80 completa: memoria, КР580ВВ55А, indicadores,
- * teclado, panel de LEDs y modo paso a paso.
+/* machine.c — the complete УМК-80 machine: memory, КР580ВВ55А, displays,
+ * keyboard, LED panel and single-step mode.
  *
- * Independiente: sólo las cabeceras del propio núcleo. Sin libc.
+ * Freestanding: only this core's own headers. No libc.
  */
 
 #include "umk80/umk80.h"
@@ -9,7 +9,7 @@
 #define UMK_MAGIC   0x554D4B38u   /* 'UMK8' */
 #define UMK_VERSION 1u
 
-/* --- utilidades sin libc -------------------------------------------------- */
+/* --- helpers, without libc -------------------------------------------------- */
 
 static void zero(void *p, size_t n)
 {
@@ -24,14 +24,13 @@ static void copy(void *dst, const void *src, size_t n)
     while (n--) *d++ = *s++;
 }
 
-/* --- decodificación de direcciones ---------------------------------------
+/* --- address decoding ----------------------------------------------------
  *
- * La zona decodificada es 0000h-0FFFh: ПЗУ en 0000h-07FFh y ОЗУ en
- * 0800h-0FFFh. Fuera de ella se devuelve FFh (bus sin excitar). En la
- * revisión 1, con sólo 1 KB de ОЗУ, el chip se repite en 0C00h-0FFFh, que
- * es lo que hace que el búfer del monitor en 0FFAh caiga sobre memoria
- * real. Ver DESCONOCIDOS.md §1: el detalle del decodificador (D15, D16)
- * está inferido, no leído del esquema.
+ * The decoded region is 0000h-0FFFh: ROM at 0000h-07FFh and RAM at
+ * 0800h-0FFFh. Outside it, FFh is returned (undriven bus). On revision 1,
+ * with only 1 KB of RAM, the chip repeats across 0C00h-0FFFh, which is what
+ * makes the monitor's buffer at 0FFAh land on real memory. See UNKNOWNS.md
+ * §1: the decoder detail (D15, D16) is inferred, not read off the diagram.
  */
 static bool decode(const umk_machine_t *m, uint16_t addr,
                    bool *is_rom, uint16_t *index)
@@ -69,16 +68,16 @@ void umk_poke(umk_machine_t *m, uint16_t addr, uint8_t val)
     m->ram[idx] = val;
 }
 
-/* --- indicadores: integración con persistencia ----------------------------
+/* --- displays: integration with persistence -------------------------------
  *
- * Integrador con fuga por par (dígito, segmento). En cada intervalo dt se
- * suma dt a los pares encendidos y a un acumulador total, y luego todo
- * decae exponencialmente con constante `tau_cycles`. La intensidad de un
- * segmento es su energía dividida por el total, o sea su ciclo de trabajo
- * en la ventana de persistencia.
+ * A leaky integrator per (digit, segment) pair. On each interval dt, dt is
+ * added to the lit pairs and to a total accumulator, then everything decays
+ * exponentially with time constant `tau_cycles`. A segment's intensity is its
+ * energy divided by the total, i.e. its duty cycle over the persistence
+ * window.
  *
- * El decaimiento se aplica a pasos fijos de tau/64 mediante desplazamientos,
- * para no meter una división de 64 bits por celda y por instrucción.
+ * The decay is applied in fixed steps of tau/64 using shifts, to avoid a
+ * 64-bit division per cell per instruction.
  */
 #define ENERGY_SCALE 256u
 #define DECAY_SHIFT  6u
@@ -109,8 +108,8 @@ static void display_advance(umk_machine_t *m, uint64_t to_cycle)
     d->integrated_to = to_cycle;
     dt = (delta > 0x00100000ull) ? 0x00100000u : (uint32_t)delta;
 
-    /* Qué está encendido durante este intervalo. Sólo cuentan los seis bits
-     * bajos de PORTA: el УМК-80 tiene seis indicadores. */
+    /* What is lit during this interval. Only the low six bits of PORTA
+     * count: the УМК-80 has six displays. */
     sel = (uint8_t)(m->ppi.out_a & 0x3Fu);
     seg = m->ppi.out_b;
 
@@ -135,7 +134,7 @@ static void display_advance(umk_machine_t *m, uint64_t to_cycle)
         steps++;
     }
     if (steps >= DECAY_MAX_STEPS) {
-        /* Han pasado eras sin refrescar: todo apagado. */
+        /* Ages have passed without a refresh: everything is dark. */
         zero(d->energy, sizeof d->energy);
         zero(d->energy_digit, sizeof d->energy_digit);
         d->total = 0u;
@@ -212,14 +211,14 @@ void umk_display_set_persistence(umk_machine_t *m, uint32_t tau_cycles)
     m->display.decay_acc = 0u;
 }
 
-/* --- teclado -------------------------------------------------------------- */
+/* --- keyboard -------------------------------------------------------------- */
 
-/* Bits de PORTC en los que aparece cada fila (máscara 74h). */
+/* PORTC bits where each row appears (mask 74h). */
 static const uint8_t ROW_BIT[UMK_KEY_ROWS] = { 2u, 4u, 5u, 6u };
 
 static uint8_t keyboard_scan(const umk_machine_t *m)
 {
-    uint8_t value = 0xFFu;           /* reposo: todas las filas a nivel alto */
+    uint8_t value = 0xFFu;           /* idle: every row reads high */
     uint8_t cols = (uint8_t)(m->ppi.out_a & 0x3Fu);
     unsigned c, r;
 
@@ -248,7 +247,7 @@ void umk_release_all_keys(umk_machine_t *m)
 static void ppi_write_control(umk_ppi_t *p, uint8_t val)
 {
     if (val & 0x80u) {
-        /* Palabra de modo. El 8255 borra los pestillos de salida. */
+        /* Mode word. The 8255 clears the output latches. */
         p->ctrl = val;
         p->a_is_out     = (val & 0x10u) == 0u;
         p->c_hi_is_out  = (val & 0x08u) == 0u;
@@ -256,7 +255,7 @@ static void ppi_write_control(umk_ppi_t *p, uint8_t val)
         p->c_lo_is_out  = (val & 0x01u) == 0u;
         p->out_a = 0u; p->out_b = 0u; p->out_c = 0u;
     } else {
-        /* Bit set/reset sobre el puerto C. */
+        /* Bit set/reset on port C. */
         unsigned bit = (unsigned)((val >> 1) & 7u);
         if (val & 1u) p->out_c = (uint8_t)(p->out_c | (1u << bit));
         else          p->out_c = (uint8_t)(p->out_c & ~(uint8_t)(1u << bit));
@@ -284,17 +283,17 @@ static uint8_t bus_in(void *ud, uint8_t port)
         case UMK_PORT_A:    return m->ppi.a_is_out ? m->ppi.out_a : 0xFFu;
         case UMK_PORT_B:    return m->ppi.b_is_out ? m->ppi.out_b : 0xFFu;
         case UMK_PORT_C:    return keyboard_scan(m);
-        case UMK_PORT_CTRL: return 0xFFu;   /* el 8255 no deja leer el control */
+        case UMK_PORT_CTRL: return 0xFFu;   /* the 8255 control port is write-only */
         case UMK_PORT_DBG:  return m->step.dbg_port;
         default:            return 0xFFu;
     }
 }
 
-/* Dentro de una instrucción OUT (10 ciclos T: M1 = 4, lectura del número de
- * puerto = 3, escritura = 3) la escritura ocurre en el último ciclo de
- * máquina, o sea a partir del ciclo T número 7. Situar ahí el cambio de
- * puerto importa: el fantasmeo del multiplexado se juega en intervalos de
- * una decena de ciclos T entre un OUT 0F8H y el siguiente OUT 0F9H. */
+/* Within an OUT instruction (10 T states: M1 = 4, port-number read = 3,
+ * write = 3) the write happens in the last machine cycle, i.e. from T state 7
+ * onwards. Placing the port change there matters: multiplexing ghosting is
+ * decided over intervals of a dozen T states between one OUT 0F8H and the
+ * next OUT 0F9H. */
 #define OUT_WRITE_OFFSET 7u
 
 static void bus_out(void *ud, uint8_t port, uint8_t val)
@@ -361,7 +360,7 @@ void umk_set_power_fault(umk_machine_t *m, bool p5, bool m5, bool p12)
     m->panel.fault_p12 = p12;
 }
 
-/* --- ciclo de vida -------------------------------------------------------- */
+/* --- lifecycle -------------------------------------------------------- */
 
 void umk_init(umk_machine_t *m, umk_rev_t rev)
 {
@@ -376,9 +375,9 @@ void umk_init(umk_machine_t *m, umk_rev_t rev)
 
     i8080_reset(&m->cpu);
 
-    /* Tras el encendido el ВВ55 arranca con los tres puertos como entrada,
-     * que es el estado por omisión del 8255 real. El monitor lo reprograma
-     * con la palabra 89h (МОН: MVI A, NOT CNTRWRD). */
+    /* At power-on the ВВ55 starts with all three ports as inputs, which is
+     * the real 8255's default. The monitor reprograms it with the word 89h
+     * (МОН: MVI A, NOT CNTRWRD). */
     ppi_write_control(&m->ppi, 0x9Bu);
 
     m->display.bit0_is_left = true;             /* DESCONOCIDOS.md §3 */
@@ -417,12 +416,12 @@ void umk_reset(umk_machine_t *m)
 
 void umk_interrupt(umk_machine_t *m)
 {
-    /* ПР genera RST 7: el monitor lo atiende en 0038h. МОН hoja −19−,
+    /* ПР generates RST 7: the monitor services it at 0038h. МОН sheet −19−,
      * «ОБРАБАТЫВАЮЩИЕ ПРОГРАММЫ / RESTART». */
     i8080_interrupt(&m->cpu, 0xFFu);
 }
 
-/* --- ejecución ------------------------------------------------------------ */
+/* --- execution ------------------------------------------------------------ */
 
 static unsigned exec_one(umk_machine_t *m)
 {
@@ -443,9 +442,8 @@ unsigned umk_step_instruction(umk_machine_t *m)
     return c;
 }
 
-/* Ejecuta la instrucción en curso «en seco» para conocer su secuencia de
- * ciclos de máquina, y lo deshace todo. Al terminar, la máquina está
- * exactamente como estaba. */
+/* Runs the current instruction "dry" to learn its machine-cycle sequence,
+ * then undoes everything. On return the machine is exactly as it was. */
 static void step_probe(umk_machine_t *m)
 {
     i8080_t       cpu_save  = m->cpu;
@@ -469,7 +467,7 @@ static void step_probe(umk_machine_t *m)
         m->step.mc_data[i]   = m->cpu.mc_data[i];
     }
 
-    /* deshacer, en orden inverso por si una dirección se escribió dos veces */
+    /* undo in reverse order, in case an address was written twice */
     i = m->trial_n;
     while (i-- > 0u) m->ram[m->trial_idx[i]] = m->trial_old[i];
     m->trial = false;
@@ -489,15 +487,15 @@ bool umk_step_machine_cycle(umk_machine_t *m)
     if (m->step.mc_index == 0u) step_probe(m);
 
     if (m->step.mc_index + 1u >= m->step.mc_total) {
-        /* último ciclo de máquina: aquí es donde la instrucción surte efecto */
+        /* last machine cycle: this is where the instruction takes effect */
         exec_one(m);
         panel_update(m);
         m->step.mc_index = 0u;
         return true;
     }
 
-    /* ciclo intermedio: sólo se refresca el panel con lo que el bus llevaba
-     * en ese ciclo */
+    /* intermediate cycle: only refresh the panel with what the bus carried
+     * on that cycle */
     m->panel.address = m->step.mc_addr[m->step.mc_index];
     m->panel.data    = m->step.mc_data[m->step.mc_index];
     m->panel.status  = m->step.mc_status[m->step.mc_index];
@@ -509,7 +507,7 @@ uint64_t umk_run_cycles(umk_machine_t *m, uint64_t cycles)
 {
     uint64_t start = m->cpu.cycles;
 
-    if (m->step.latch_step) return 0u;   /* detenida esperando ШГ */
+    if (m->step.latch_step) return 0u;   /* halted, waiting for ШГ */
 
     while (m->cpu.cycles - start < cycles) {
         exec_one(m);
@@ -518,7 +516,7 @@ uint64_t umk_run_cycles(umk_machine_t *m, uint64_t cycles)
     return m->cpu.cycles - start;
 }
 
-/* --- mandos --------------------------------------------------------------- */
+/* --- controls --------------------------------------------------------------- */
 
 void umk_set_switch(umk_machine_t *m, umk_switch_t sw, bool latched)
 {
@@ -544,7 +542,7 @@ void umk_press_step(umk_machine_t *m)
     else                     (void)umk_step_instruction(m);
 }
 
-/* --- estado --------------------------------------------------------------- */
+/* --- state --------------------------------------------------------------- */
 
 size_t umk_state_size(void) { return sizeof(umk_machine_t); }
 

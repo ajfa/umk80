@@ -1,9 +1,9 @@
 @echo off
 rem =====================================================================
-rem  Arma el paquete portable de Windows: build\umk80-windows.zip
+rem  Builds the portable Windows package: build\umk80-windows.zip
 rem
-rem  Se comprueba antes que los ejecutables no dependan de ninguna DLL
-rem  que no venga con el propio Windows.
+rem  It first checks that the executables depend on no DLL beyond the ones
+rem  that ship with Windows itself.
 rem =====================================================================
 setlocal
 cd /d "%~dp0\.."
@@ -11,7 +11,7 @@ cd /d "%~dp0\.."
 set STAGE=build\pack\umk80-windows
 
 if not exist "build\umk80.exe" (
-  echo Compila primero:  mingw32-make
+  echo Build first:  mingw32-make
   exit /b 1
 )
 
@@ -35,7 +35,7 @@ copy /y "PLAN.md"            "%STAGE%\" >nul
 copy /y "DESCONOCIDOS.md"    "%STAGE%\" >nul
 copy /y "docs\FUENTES.md"    "%STAGE%\docs\" >nul
 
-echo Comprobando dependencias de DLL...
+echo Checking DLL dependencies...
 for %%E in (umk80 umkcli umkasm umkdis umkrom) do (
   objdump -p "%STAGE%\%%E.exe" | findstr /c:"DLL Name"
 )
@@ -45,5 +45,5 @@ powershell -NoProfile -Command ^
   "Compress-Archive -Path 'build/pack/umk80-windows/*' -DestinationPath 'build/umk80-windows.zip' -Force"
 
 echo.
-echo Listo: build\umk80-windows.zip
+echo Done: build\umk80-windows.zip
 endlocal

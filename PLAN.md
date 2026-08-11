@@ -1,107 +1,100 @@
-# PLAN — Emulador del УМК-80 (ВЭФ, РР3.059.004)
+# PLAN — УМК-80 emulator
 
-Estado: **propuesta, pendiente de tu visto bueno.** No se ha escrito nada de código.
-Fecha: 2026-08-11.
-
----
-
-## 0. Resumen ejecutivo
-
-Tres cosas cambian respecto a lo que suponía tu encargo:
-
-1. **La ROM del monitor no hay que reinventarla ni sustituirla.** El PDF
-   `umk_docs.pdf` (110 páginas) incluye, además del paquete de documentación
-   operativa, el documento `Р.Р.00004-01 12 01-1 "Системный монитор — Текст
-   программы"` (1986, литера О₁, 42 hojas): **el listado completo del
-   ensamblador ISIS-II 8080/8085 MACRO ASSEMBLER V4.0**, con las columnas
-   `LOC` (dirección) y `OBJ` (bytes objeto) impresas. Eso permite reconstruir
-   la imagen de 1 KB byte a byte *y* verificarla de forma independiente
-   reensamblando el texto fuente. La ruta 3 (monitor sustituto) queda como
-   plan de contingencia, no como camino previsto.
-
-2. **Los puertos de E/S están confirmados por el propio fuente del monitor**,
-   no por un artículo de blog. Y hay uno más de los que menciona tu encargo.
-
-3. **El multiplexado y el teclado son el mismo lazo**: el barrido de dígitos
-   es también el barrido de columnas del teclado. Eso condiciona el diseño del
-   núcleo (no se puede modelar el display sin modelar el teclado a la vez).
-
-4. **El mapa de memoria de tu encargo corresponde a una revisión anterior del
-   equipo.** La documentación que descargué lleva la revisión ② (doc.
-   `РР1323-87`, firmada 10.09.89) y en ella el «1 кбайт» de ОЗУ está **tachado
-   a mano y sustituido por «2»**, y la línea «в том числе, ПЗУ пользователя —
-   1 кбайт» está **tachada entera**. El perechen de elementos concuerda: un
-   solo chip de ОЗУ (`D24 КР537РУ8А`, 2 K×8) y un solo chip de ПЗУ
-   (`D25 К573РФ2`, 2 K×8) — no dos de cada uno. Y el propio monitor lo
-   confirma: `RAMEND EQU 1000H`. Detalle completo en §1.1 y en
-   DESCONOCIDOS.md §1.
+This document was written **before any code**, as the plan for the work, and
+is kept as the record of what could be established from the documentation and
+where each fact came from. Where it says "will", the thing has since been
+built; the acceptance checks in `tests/` are the proof.
 
 ---
 
-## 1. Lo que está verificado documentalmente
+## 0. Summary
 
-Todo lo de esta sección procede del PDF descargado hoy
-(`docs/umk_docs.pdf`, SHA a registrar en el repo) salvo donde se indique.
-Referencio por página del PDF y, entre paréntesis, por página impresa del
-documento correspondiente.
+Three things turned out differently from the initial brief:
 
-### 1.1 Identidad del equipo
+1. **The monitor ROM did not have to be reinvented or replaced.** The
+   documentation PDF (`umk_docs.pdf`, 110 pages) contains, besides the
+   operational manual, the document `Р.Р.00004-01 12 01-1` «Системный
+   монитор — Текст программы» (1986, литера О<sub>I</sub>, 42 sheets): **the
+   complete ISIS-II 8080/8085 MACRO ASSEMBLER V4.0 listing**, with the `LOC`
+   (address) and `OBJ` (object bytes) columns printed. That makes it possible
+   to rebuild the 1 KB image byte for byte *and* to verify it independently by
+   reassembling the source text.
 
-| Dato | Valor | Fuente |
+2. **The I/O ports are confirmed by the monitor's own source**, not by a blog
+   post. And there is one more of them than expected.
+
+3. **Multiplexing and the keyboard are the same loop**: the digit scan is also
+   the keyboard column scan. That constrains the core design — the display
+   cannot be modelled without modelling the keyboard at the same time.
+
+4. **The memory map in the brief corresponds to an earlier revision of the
+   machine.** The documentation carries revision ② (doc. `РР1323-87`, signed
+   10.09.89), in which the "1 кбайт" of RAM is **struck through by hand and
+   replaced with "2"**, and the line «в том числе, ПЗУ пользователя — 1
+   кбайт» is **struck out entirely**. The parts list agrees: one RAM chip
+   (`D24 КР537РУ8А`, 2 K×8) and one ROM chip (`D25 К573РФ2`, 2 K×8) — not two
+   of each. And the monitor itself confirms it: `RAMEND EQU 1000H`. Detail in
+   §1.1 and in UNKNOWNS.md §1.
+
+---
+
+## 1. What is confirmed from documentation
+
+Everything in this section comes from the PDF (`docs/umk_docs.pdf`, SHA256 in
+`docs/SOURCES.md`) unless stated otherwise. References are by PDF page.
+
+### 1.1 Identity of the machine
+
+| Item | Value | Source |
 |---|---|---|
-| Documento | `РР3.059.004 ПС` — Паспорт, 38 hojas | p. 4 |
-| Variantes | `РР3.059.004` (maletín, ≤455×421×130 mm, ≤9,6 kg) y `РР3.059.004-01` (sobremesa, ≤453×360×128 mm, ≤8,6 kg) | p. 9 |
-| CPU | КР580ИК80А (= КР580ВМ80А) | p. 8 (tabla «Технические характеристики») |
-| ОЗУ | ~~1~~ → **2 Кбайт** (corrección manuscrita, revisión ②) | p. 8 |
-| ПЗУ | 2 Кбайт; la línea «в том числе, ПЗУ пользователя — 1 кбайт» está **tachada** | p. 8 |
-| Interrupción | 1 vector | p. 8 |
-| Software | programa «Монитор» | p. 8 |
-| Niveles E/S | compatibles ТТЛ, disponibles en el ТЗЗ МI (campo de prototipos) | p. 8 |
-| Alimentación | 220 V ±22 V, 50±1 Hz; salidas +5 V/0,70 A, +12 V/0,15 A, −5 V/0,20 A; ≤50 VA | p. 8 |
+| Document | `РР3.059.004 ПС` — Паспорт, 38 sheets | p. 4 |
+| Variants | `РР3.059.004` (briefcase, ≤455×421×130 mm, ≤9.6 kg) and `РР3.059.004-01` (desktop, ≤453×360×128 mm, ≤8.6 kg) | p. 9 |
+| CPU | КР580ИК80А (= КР580ВМ80А) | p. 8 |
+| RAM | ~~1~~ → **2 Кбайт** (handwritten correction, revision ②) | p. 8 |
+| ROM | 2 Кбайт; the line «в том числе, ПЗУ пользователя — 1 кбайт» is **struck out** | p. 8 |
+| Interrupt | 1 vector | p. 8 |
+| Software | the «Монитор» program | p. 8 |
+| I/O levels | TTL compatible, available on the ТЗЗ МI prototyping board | p. 8 |
+| Power | 220 V ±22 V, 50±1 Hz; +5 V/0.70 A, +12 V/0.15 A, −5 V/0.20 A; ≤50 VA | p. 8 |
 | Monitor | «занимает 1 Кбайт ПЗУ и использует последние 54 ячейки ОЗУ» | p. 16 |
 
-### 1.1-bis El mapa de memoria real, y por qué no es el de tu encargo
+### 1.1-bis The real memory map, and why it is not the one in the brief
 
-Cuatro fuentes independientes convergen:
+Four independent sources converge:
 
-| Fuente | Qué dice |
+| Source | What it says |
 |---|---|
-| ПС p. 8, revisión ② (`РР1323-87`, 10.09.89) | ОЗУ **2** Кбайт (el «1» tachado a mano); ПЗУ 2 Кбайт; línea de «ПЗУ пользователя» tachada |
-| ПЭ3 `РР3.055.472` л. 2 (ТЗЗ ПЦМ) | **`D24 КР537РУ8А`** — 1 ud. (SRAM 2 K×8) · **`D25 К573РФ2`** — 1 ud. (EPROM 2 K×8, equivalente al 2716) |
-| ПС p. 25 (§4.5.1) | «оперативное запоминающее устройство (**D24**)»; «постоянное запоминающее устройство (**D25**)» — un chip cada uno |
-| Fuente del monitor, p. 46 | `RAMEND EQU 1000H`, `BUFCD EQU 0FFAh`, `STKPTR EQU 0FCEh` |
+| ПС p. 8, revision ② (`РР1323-87`, 10.09.89) | RAM **2** Кбайт (the "1" struck by hand); ROM 2 Кбайт; the "user ROM" line struck out |
+| ПЭ3 `РР3.055.472` sheet 2 (ТЗЗ ПЦМ) | **`D24 КР537РУ8А`** — 1 off (SRAM 2 K×8) · **`D25 К573РФ2`** — 1 off (EPROM 2 K×8, a 2716 equivalent) |
+| ПС p. 25 (§4.5.1) | «оперативное запоминающее устройство (**D24**)»; «постоянное запоминающее устройство (**D25**)» — one chip each |
+| The monitor source, p. 46 | `RAMEND EQU 1000H`, `BUFCD EQU 0FFAh`, `STKPTR EQU 0FCEh` |
 
-De donde:
+Hence:
 
 ```
-0x0000–0x03FF   Монитор            (К573РФ2, mitad baja)
-0x0400–0x07FF   ПРОГРАММАТОР УМК   (К573РФ2, mitad alta)
-0x0800–0x0FFF   ОЗУ  2 KB          (КР537РУ8А)
-   0x0FCE–0x0FF9  variables del monitor + tabla de registros (LENTOS = 44)
-   0x0FEE         tabla de vectores de interrupción en ОЗУ (USRSTTB)
-   0x0FFA–0x0FFF  búfer de regeneración del display (BUFCD, 6 bytes)
-   SP inicial del monitor = 0x0FCE
+0x0000–0x03FF   Монитор            (К573РФ2, lower half)
+0x0400–0x07FF   ПРОГРАММАТОР УМК   (К573РФ2, upper half)
+0x0800–0x0FFF   RAM  2 KB          (КР537РУ8А)
+   0x0FCE–0x0FF9  monitor variables + register table (LENTOS = 44)
+   0x0FEE         interrupt vector table in RAM (USRSTTB)
+   0x0FFA–0x0FFF  display refresh buffer (BUFCD, 6 bytes)
+   monitor's initial SP = 0x0FCE
 ```
 
-Es decir: **no hay 1 KB de «ПЗУ de usuario reservado»** — esa mitad lleva el
-programador de EPROM — y **la RAM son 2 KB, no 1 KB**. El mapa de tu encargo
-(y el de eax.me, que es su origen) describe la revisión anterior, con dos
-`К573РФ1` de 1 KB y dos chips de ОЗУ de 512 B.
+That is: **there is no reserved 1 KB of "user ROM"** — that half holds the
+EPROM programmer — and **the RAM is 2 KB, not 1 KB**. The map in the brief
+(and on eax.me, which is its origin) describes the earlier revision, with two
+1 KB `К573РФ1` and two 512 B RAM chips.
 
-Lo trataré como **dos perfiles de máquina seleccionables** (`--rev=1` /
-`--rev=2`, por defecto la 2, que es la que documenta el PDF), no eligiendo
-uno y descartando el otro. El núcleo lleva la tabla de decodificación como
-dato, no como `#ifdef`.
+Both are supported as **selectable machine profiles** (`--rev1` / `--rev2`,
+defaulting to 2, the one the PDF documents), rather than picking one and
+discarding the other. The core carries the decoding table as data, not as an
+`#ifdef`.
 
-El museo de la informática (computer-museum.ru) atribuye el equipo al ПО «ВЭФ»
-de Riga y lo fecha en 1983–1985, y afirma que УМК y УМПК-80 «использовали
-одинаковое системное ПО "Монитор"». **Esa afirmación de equivalencia de
-software no la voy a dar por buena**: ver DESCONOCIDOS.md §2.
+### 1.2 Port map — confirmed from the monitor source
 
-### 1.2 Mapa de puertos — confirmado desde el fuente del monitor
-
-Página 46 del PDF (hoja «−4−», MODULE PAGE 3 del listado), sección
-`1. ОПИСАНИЕ ПОРТОВ ВВОДА/ВЫВОДА`, transcrito literalmente:
+PDF page 46 (sheet «−4−», MODULE PAGE 3 of the listing), section
+`1. ОПИСАНИЕ ПОРТОВ ВВОДА/ВЫВОДА`, transcribed verbatim:
 
 ```
 00F8   PORTA    EQU  0F8H          ; ПОРТ АДРЕСА
@@ -120,31 +113,28 @@ Página 46 del PDF (hoja «−4−», MODULE PAGE 3 del listado), sección
 0000   TYPEBT   EQU  0             ; ТИП ДАННЫХ - BYTE
 1000   RAMEND   EQU  1000H         ; ВЕРХНЯЯ ГРАН. ОЗУ
 002C   LENTOS   EQU  44            ; ДЛ.ТАБЛ.ИСХ.ЗНАЧ. РЕГ. И ВЕКТ.ПРЕРЫВ.
-0FCE   BASETOS  EQU  RAMEND-LENTOS-6   ; БАЗА В ОЗУ
+0FCE   BASETOS  EQU  RAMEND-LENTOS-6
 0FCE   STKPTR   EQU  BASETOS       ; ИСХ.ЗНАЧ. SP МОНИТ.
 0FFA   BUFCD    EQU  RAMEND-6      ; БУФЕР РЕГЕНЕР. ИНДИК.
 0FEE   USRSTTB  EQU  BASETOS+32    ; АДР.ВЕКТ.ПРЕР. В ОЗУ
 0000 C34000     JMP  BOOT
 ```
 
-Consecuencias directas:
+Direct consequences:
 
-- **F8/F9/FA/FB son los cuatro registros de un КР580ВВ55А (8255)**: A =
-  selección de dígito *y* barrido de columnas de teclado (salida),
-  B = segmentos (salida), C = filas de teclado (entrada), FB = registro
-  de control.
-- La palabra de control se escribe como `MVI A, NOT CNTRWRD` → `NOT 76H = 89H`
-  (el listado imprime `3E89` en la columna OBJ, p. 48 del PDF). **0x89 =
-  modo 0, PA salida, PB salida, PC entrada (ambas mitades)** — coherente al
-  100 % con el uso descrito. Esto es una verificación cruzada fuerte: el
-  fuente, los bytes objeto y la semántica del 8255 concuerdan.
-- **Hay un quinto puerto que tu encargo no menciona: `0FCH`, «ПОРТ ПОШАГ.
-  РЕЖ.»**, con `STEPWRD = 1`. Es el puerto por el que el monitor arma el modo
-  paso a paso. Hay que emularlo.
+- **F8/F9/FA/FB are the four registers of a КР580ВВ55А (8255)**: A = digit
+  select *and* keyboard column scan (output), B = segments (output),
+  C = keyboard rows (input), FB = control register.
+- The control word is written as `MVI A, NOT CNTRWRD` → `NOT 76H = 89H` (the
+  listing prints `3E89` in the OBJ column, PDF p. 48). **0x89 = mode 0, PA
+  output, PB output, PC input (both halves)** — exactly consistent with the
+  described use. Source, object bytes and 8255 semantics all agree.
+- **There is a fifth port the brief does not mention: `0FCH`, «ПОРТ ПОШАГ.
+  РЕЖ.»**, with `STEPWRD = 1`. It is how the monitor arms single-step mode.
 
-### 1.3 El lazo de regeneración del display — el corazón del criterio 3
+### 1.3 The display refresh loop — the heart of criterion 3
 
-Página 72 del PDF (hoja «−30−», MODULE PAGE 29), transcrito literalmente:
+PDF page 72 (sheet «−30−», MODULE PAGE 29), verbatim:
 
 ```
 02D1 0620          MVI  B,NMBIND    ; АДР.ИНДИК.
@@ -170,272 +160,185 @@ CILOOP:                             ; ЦИКЛ РЕГЕНЕРАЦИИ ; N ИНД
 02ED C3CE02        JMP  CIBEG       ; СНАЧАЛА
 ```
 
-Lecturas que esto fija:
+What this pins down:
 
-- El barrido arranca en `B = 0x20` (bit 5) y **rota a la derecha** hasta
-  `0x01`; al rotar `0x01` el acarreo se pone a 1 y reinicia. Seis posiciones,
-  seis dígitos.
-- `HL` empieza en `BUFCD = 0FFAh` y se incrementa con el barrido, luego
-  `0FFA ↔ bit5`, `0FFB ↔ bit4`, … `0FFF ↔ bit0`. **Esto contradice
-  aparentemente la convención de tu encargo** (`0b000001` = el de más a la
-  izquierda). Ver DESCONOCIDOS.md §3: es la incógnita nº 1 y tiene solución
-  experimental limpia.
-- **El monitor sí apaga los segmentos antes de avanzar de dígito** (`MVI
-  A,ERASE / OUT PORTB`). O sea: el propio monitor es la versión "correcta"
-  del criterio de aceptación 3. Un núcleo que no modele la persistencia
-  producirá fantasmeo *también en el monitor*, y eso es un test de regresión
-  gratis.
-- Máscara de teclado `74H` = bits 2, 4, 5, 6 de PORTC → **4 filas × 6 columnas
-  = 24 teclas**, exactamente las «24 клавиш, из них 8 клавиш директивные, а
-  16 — информационные» del ПС (p. 34).
-- El antirrebote es por software: `TIME EQU 850` («ВРЕМЯ ДРЕБЕЗГА 10» ms) y
-  una rutina `DELAY` en `035B`. **Un lazo de retardo calibrado en ciclos
-  reales** — otra razón por la que el conteo de ciclos no es opcional.
+- The scan starts at `B = 0x20` (bit 5) and **rotates right** down to `0x01`;
+  rotating `0x01` sets the carry and restarts. Six positions, six digits.
+- `HL` starts at `BUFCD = 0FFAh` and increments with the scan, so
+  `0FFA ↔ bit5`, `0FFB ↔ bit4`, … `0FFF ↔ bit0`.
+- **The monitor does blank the segments before advancing digit** (`MVI
+  A,ERASE / OUT PORTB`). In other words, the monitor is itself the "correct"
+  version of acceptance criterion 3, so a core that fails to model
+  persistence would ghost *in the monitor too* — a free regression test.
+- Keyboard mask `74H` = bits 2, 4, 5, 6 of PORTC → **4 rows × 6 columns = 24
+  keys**, exactly the «24 клавиш, из них 8 клавиш директивные, а 16 —
+  информационные» of the ПС (p. 34).
+- Debounce is in software: `TIME EQU 850` («ВРЕМЯ ДРЕБЕЗГА 10» ms) and a
+  `DELAY` routine at `035B`. **A delay loop calibrated in real cycles** —
+  another reason cycle counting is not optional.
 
-### 1.4 Estructura del ПЗУ
+### 1.4 ROM structure
 
-- `0000` → `JMP BOOT` (`C3 40 00`), BOOT en `0040`.
-- Vectores RST 1..6 en `0008`…`0030`, cada uno `LHLD USRSTTB+2n / PCHL`
-  (redirección a tabla en ОЗУ). RST 7 (`0038`) es el manejador de
-  interrupción del botón **ПР**.
-- El monitor termina cerca de `03E7` (tablas `DS/DW`), o sea cabe en el 1 KB
+- `0000` → `JMP BOOT` (`C3 40 00`), BOOT at `0040`.
+- RST 1..6 vectors at `0008`…`0030`, each `LHLD USRSTTB+2n / PCHL`
+  (redirection through a table in RAM). RST 7 (`0038`) handles the **ПР**
+  button interrupt.
+- The monitor ends near `03E7` (`DS/DW` tables), so it fits in the 1 KB
   `0000–03FF`.
-- **La segunda ROM (`0400–07FF`) no está "reservada": lleva el «ПРОГРАММАТОР
-  УМК»**, que el listado incluye con `ORG 400H` (páginas 82–83 del PDF,
-  hojas «−40−»/«−41−», código de `0400` a `0449`+). Es el programador de
-  К573РФ1. Lo trataré como imagen ROM secundaria opcional, enchufable igual
-  que la primera.
+- **The second ROM half (`0400–07FF`) is not "reserved": it holds the
+  «ПРОГРАММАТОР УМК»**, which the listing includes with `ORG 400H` (PDF pages
+  82–83, code from `0400` to `0449`+). It is the К573РФ1 programmer, treated
+  as an optional secondary ROM image, pluggable just like the first.
 
-### 1.5 Directivas del monitor — formatos confirmados
+### 1.5 Monitor directives — confirmed formats
 
-Del `Руководство оператора` (`Р.Р.00004-01 34 01-1`, 11 hojas, páginas 85–96
-del PDF) y del ПС (pp. 34–36):
+From the `Руководство оператора` (`Р.Р.00004-01 34 01-1`, 11 sheets, PDF pages
+85–96) and the ПС (pp. 34–36):
 
-| Directiva | Formato | Función |
+| Directive | Format | Function |
 |---|---|---|
-| `П`  | `П XXXX ВП` | leer/modificar memoria |
-| `РГ` | `РГ Y ВП` | leer/modificar registro |
-| `СТ` | `СТ [A1] [A2] [A3] ВП` | ejecutar; A2/A3 = hasta **dos** puntos de ruptura |
-| `КС` | `КС A1 A2 ВП` | suma de verificación (módulo 256, sin acarreo) |
-| `ЗК` | `ЗК A1 A2 C ВП` | rellenar con constante |
-| `ПМ` | `ПМ A1 A2 A3 ВП` | copiar bloque |
-| `_`  | (espacio) | separador de parámetros / avance de byte |
-| `ВП` | | fin de directiva |
+| `П`  | `П XXXX ВП` | read/modify memory |
+| `РГ` | `РГ Y ВП` | read/modify a register |
+| `СТ` | `СТ [A1] [A2] [A3] ВП` | run; A2/A3 = up to **two** breakpoints |
+| `КС` | `КС A1 A2 ВП` | checksum (modulo 256, no carry) |
+| `ЗК` | `ЗК A1 A2 C ВП` | fill with a constant |
+| `ПМ` | `ПМ A1 A2 A3 ВП` | copy a block |
+| `_`  | (space) | parameter separator / advance one byte |
+| `ВП` | | end of directive |
 
-Registros direccionables con `РГ`: `A B C D E H L P(признаков) SL SH PL PH`
-(ПС p. 36 y Руководство p. 8). Tras `СБ` el display muestra `-`; ante error
-de sintaxis muestra `?` y vuelve al estado inicial.
+Registers addressable with `РГ`: `A B C D E H L P(признаков) SL SH PL PH`
+(ПС p. 36 and the operator's manual p. 8). After `СБ` the display shows `-`;
+on a syntax error it shows `?` and returns to the initial state.
 
-Botones y conmutadores en la Плата ПК (ПС p. 28): pulsadores `СБ` (S1),
-`ШГ` (S2), `ПР` (S5); **conmutadores** `РБ/ШГ` (S3) y `КМ/ЦК` (S4). Es decir:
-el enclavamiento que pides está en el documento, y la nomenclatura oficial es
-`КМ/ЦК`, no `ММ/ЦИ`.
-
----
-
-## 2. Lenguaje, dependencias y build
-
-**Núcleo: C11 en modo independiente (freestanding).** Sólo `stdint.h`,
-`stddef.h`, `stdbool.h` — cabeceras que el estándar garantiza sin biblioteca
-de ejecución. Ni `stdio`, ni `stdlib`, ni asignación dinámica: el estado
-completo de la máquina vive en un único `umk_machine_t` que el llamante
-posee. Justificación:
-
-- Cumple literalmente tu restricción («sin dependencias… ni siquiera de la
-  biblioteca estándar»), cosa que en Rust exigiría `#![no_std]` + `alloc`
-  a mano y aun así arrastra `cargo` y la red para cualquier crate del
-  frontend, rompiendo «compilación reproducible con un solo comando» en
-  una máquina sin acceso a crates.io.
-- Un `umk_machine_t` POD hace que el entregable 6 (guardar/restaurar estado)
-  sea un `memcpy` con cabecera versionada, no un problema de serialización.
-- Es el mismo terreno en el que ya tengo verificado el camino a Windows
-  nativo.
-
-**Frontend: C11 con dos backends de plataforma detrás de una capa de ~200
-líneas.**
-
-- **Windows (objetivo primario): Win32 puro** — `user32` + `gdi32`, que van
-  en el propio sistema. Cero dependencias externas, cero DLLs que copiar,
-  el .zip portable arranca con doble clic.
-- **POSIX: SDL2.** Es la ruta con menos fricción en Linux/macOS y no
-  contamina el objetivo primario.
-
-El panel se dibuja por software en un framebuffer del núcleo del frontend
-(no del emulador) y se vuelca con `StretchDIBits` o `SDL_UpdateTexture`.
-Así el dibujado es idéntico en las dos plataformas y testeable sin ventana.
-
-**Headless: C11 + libc estándar solamente.** Sin SDL, sin Win32. Es el
-binario que usan las pruebas automatizadas y CI.
-
-**Build: CMake ≥ 3.16, un solo comando por plataforma.**
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
-```
-
-Sin `FetchContent`, sin descargas en tiempo de compilación. En Windows,
-MinGW-w64 (MSYS2 mingw64) como toolchain de referencia y MSVC soportado;
-en Linux, gcc/clang con `libsdl2-dev`. Añado un `make.sh` y un `make.cmd`
-de una línea para los que no quieran acordarse de nada.
+Buttons and switches on the ПК board (ПС p. 28): momentary `СБ` (S1),
+`ШГ` (S2), `ПР` (S5); **latching switches** `РБ/ШГ` (S3) and `КМ/ЦК` (S4).
+So the latching behaviour is documented, and the official name is `КМ/ЦК`,
+not `ММ/ЦИ`.
 
 ---
 
-## 3. Estructura del repositorio
+## 2. Language, dependencies and build
+
+**Core: C11, freestanding.** Only `stdint.h`, `stddef.h`, `stdbool.h` —
+headers the standard guarantees without a runtime library. No `stdio`, no
+`stdlib`, no dynamic allocation: the entire machine state lives in a single
+`umk_machine_t` owned by the caller. Rationale:
+
+- It literally satisfies "no dependencies, not even the standard library",
+  which in Rust would require `#![no_std]` plus hand-rolled `alloc` and would
+  still drag in `cargo` and the network for any frontend crate, breaking
+  "reproducible build with a single command" on a machine without access to
+  crates.io.
+- A POD `umk_machine_t` makes saving and restoring state a `memcpy` with a
+  versioned header rather than a serialisation problem.
+
+**Frontend: C11 with two platform backends behind a ~200-line layer.**
+
+- **Windows (primary target): plain Win32** — `user32` + `gdi32`, which ship
+  with the system. No external dependencies, no DLLs to copy; the portable
+  zip runs on a double click.
+- **POSIX: SDL2.** The lowest-friction route on Linux/macOS, and it does not
+  contaminate the primary target.
+
+The panel is rendered in software into a framebuffer owned by the frontend
+(not by the emulator) and blitted with `StretchDIBits` or `SDL_UpdateTexture`,
+so the drawing is identical on both platforms and testable without a window.
+
+**Headless: C11 plus the standard library only.** No SDL, no Win32. This is
+the binary the automated tests use.
+
+**Build: a plain Makefile, one command per platform**, plus an equivalent
+`CMakeLists.txt`. No downloads at build time. On Windows, MinGW-w64 (MSYS2)
+is the reference toolchain and MSVC is supported; on Linux, gcc/clang with
+`libsdl2-dev`.
+
+---
+
+## 3. Repository layout
 
 ```
-umk80/
-  core/                     # entregable 1 — freestanding, sin libc
-    include/umk80/
-      umk80.h               # API pública única, documentada
-    src/
-      i8080.c               # CPU: 256 opcodes + no documentados, ciclos exactos
-      i8080_tables.h        # tablas de ciclos y banderas, generadas y comprobadas
-      bus.c                 # decodificación de direcciones, espejeo
-      i8255.c               # КР580ВВ55А
-      display.c             # modelo de persistencia del multiplexado
-      keyboard.c            # matriz 6×4 + enclavamientos
-      panel.c               # LEDs АДРЕС/ДАННЫЕ/СОСТОЯНИЕ/alimentación
-      step.c                # puerto 0FCH, РБ/ШГ, КМ/ЦК, ШГ
-      machine.c             # ensamblado, reset, ПР, save/restore
-  tools/
-    umkasm/                 # ensamblador 8080 (entregable 4)
-    umkdis/                 # desensamblador (entregable 4)
-    umkrom/                 # transcripción del listado -> .bin + verificación
-  frontend/                 # entregable 2
-    platform_win32.c
-    platform_sdl2.c
-    render.c  keymap.c  main.c
-  cli/                      # entregable 3 + 5 (depurador en modo texto)
-  rom/
-    monitor.asm             # fuente transcrito del listado (con comentarios rusos)
-    monitor.obj.txt         # columna LOC/OBJ transcrita, para verificación cruzada
-    programmer.asm          # ПРОГРАММАТОР УМК (ORG 400H)
-    build_rom.md            # cómo regenerar monitor.bin de forma reproducible
-  tests/
-    cpu/                    # TST8080, 8080PRE, CPUTEST, 8080EXM + arnés CP/M
-    display/                # criterio 3: fantasmeo vs HELLO limpio
-    monitor/                # criterio 2: MVI A,AA / JMP + ПР + РГ A
-    step/                   # criterio 4
-  docs/
-    umk_docs.pdf            # fuente primaria (26 MB) — no versionado, con SHA256
-    pages/                  # páginas extraídas a PNG — no versionado
-  PLAN.md  DESCONOCIDOS.md  README.md
+core/                     freestanding, no libc
+  include/umk80/          public API
+  src/                    CPU, bus, ВВ55, display, keyboard, panel, step
+tools/                    assembler, disassembler, ROM reconstructor
+frontend/                 graphical panel
+cli/                      headless mode and debugger
+rom/                      listing transcription, source, image
+tests/                    the four acceptance checks
+docs/                     source provenance
 ```
 
 ---
 
-## 4. La ROM del monitor — procedimiento
+## 4. The monitor ROM — procedure
 
-Ruta 2, con doble verificación independiente:
+Route 2 (reassemble from the listing), with double independent verification:
 
-1. **Transcribir** las 39 páginas de listado (PDF pp. 45–83) a
-   `rom/monitor.asm`. La calidad del escaneo es buena a resolución nativa
-   (1019×1547 px ≈ 130 dpi): las dos páginas que ya he leído completas se
-   transcriben sin ambigüedad. Transcribo también la columna `LOC/OBJ` a un
-   fichero aparte, `rom/monitor.obj.txt`.
-2. **Reconstruir** `monitor.bin` a partir de `LOC/OBJ` (herramienta
-   `umkrom`). Huecos = `FF` y marcados como huecos, no rellenados en
-   silencio.
-3. **Reensamblar** `monitor.asm` con `umkasm` (entregable 4).
-4. **Exigir igualdad byte a byte** entre (2) y (3). Cualquier discrepancia es
-   un error de transcripción o de OCR y se resuelve volviendo al escaneo,
-   no ajustando el fuente al binario. El registro de discrepancias
-   resueltas va al repositorio.
-5. **Verificación funcional**: la ROM así obtenida tiene que superar el
-   criterio de aceptación 2 en el emulador. Si no lo hace, la transcripción
-   no está terminada.
+1. **Transcribe** the 39 listing pages (PDF pp. 45–83) into
+   `rom/monitor.lst`, keeping the `LOC/OBJ` columns and the source column
+   side by side.
+2. **Rebuild** `monitor.bin` from `LOC/OBJ` (the `umkrom` tool). Gaps are
+   `FF` and reported as gaps, never filled silently.
+3. **Reassemble** `monitor.asm` with `umkasm`.
+4. **Require byte-for-byte equality** between (2) and (3). Any discrepancy is
+   a transcription or scanning error and is resolved by going back to the
+   scan, never by bending the source to match the binary. Resolved
+   discrepancies are recorded in the file.
+5. **Functional verification**: the resulting ROM must pass acceptance
+   criterion 2 in the emulator. If it does not, the transcription is not
+   finished.
 
-Salvaguardas de tu encargo que respeto: si me pasas un volcado binario real
-de 1 KB, tiene prioridad absoluta (ruta 1) y lo uso para validar la
-transcripción. El núcleo **no** contiene lógica de monitor en ningún caso; el
-monitor sustituto nativo (ruta 3) sólo se escribirá si (4) fracasa, en un
-módulo aparte, con la etiqueta `NO AUTÉNTICO` visible en el frontend.
-
-**Nota de licencia**: el listado es documentación técnica soviética de 1986
-de un fabricante que ya no existe. Lo trato como el resto de tus proyectos de
-preservación. La imagen binaria y el fuente transcrito viven en `rom/`, no en
-`core/`, y son sustituibles.
+If a real 1 KB binary dump ever turns up it takes absolute priority and is
+used to validate the transcription. The core contains **no** monitor logic in
+any case.
 
 ---
 
-## 5. Fases y criterios de salida
+## 5. Phases and exit criteria
 
-Respeto tu orden: **la CPU y sus suites van primero, antes de tocar el panel.**
+CPU and its suites come first, before touching the panel.
 
-| Fase | Contenido | Criterio de salida |
+| Phase | Content | Exit criterion |
 |---|---|---|
-| **F0** | Andamiaje: CMake, cabecera pública `umk80.h`, headless mínimo, CI local | `cmake --build` en Windows y Linux |
-| **F1** | CPU 8080 completa: 256 opcodes incl. no documentados, banderas exactas (AC incluido), bit 1 del PSW a 1, conteo de ciclos por instrucción y por ciclo de máquina | **TST8080, 8080PRE, CPUTEST y 8080EXM pasan.** 8080EXM comparando los CRC esperados, no sólo «no falla» |
-| **F2** | Bus, decodificación/espejeo, КР580ВВ55А, puerto `0FCH`, temporización a 2 MHz | El monitor arranca y llega a mostrar `-` tras `СБ`; lectura del decodificador `D15/D16` en el esquema (§DESCONOCIDOS 1) |
-| **F3** | Transcripción y verificación de la ROM | `monitor.bin` reconstruido == reensamblado, byte a byte |
-| **F4** | Frontend headless (entregable 3): cargar `.bin`/Intel HEX en dirección, correr N ciclos, volcar registros/memoria/display | Criterio de aceptación 2 pasa en headless |
-| **F5** | Modelo de persistencia del multiplexado | **Criterio de aceptación 3**: el programa ingenuo difiere de HELLO, el corregido coincide |
-| **F6** | Panel completo y frontend gráfico: 6 indicadores, 3 filas de LEDs (con la polaridad invertida de las de alimentación), teclado con ratón y con mapeo de teclas | Se opera el monitor con el ratón y se reproduce la secuencia de carga de tu encargo |
-| **F7** | Depurador: puntos de ruptura, paso por instrucción y por ciclo de máquina, edición de registros y memoria; desensamblador | **Criterio de aceptación 4** |
-| **F8** | Guardar/restaurar estado completo | Ciclo save→restore→continuar produce traza idéntica |
-| **F9** | Ensamblador + empaquetado portable (zip Windows nativo y zip Linux, cada uno con su script) | Arranca en una VM limpia |
+| **F0** | Scaffolding: build, public header, minimal headless | builds on Windows and Linux |
+| **F1** | Full 8080 CPU: 256 opcodes incl. undocumented, exact flags (AC included), PSW bit 1 set, exact cycle counts per instruction and per machine cycle | **TST8080, 8080PRE, CPUTEST and 8080EXM pass**, 8080EXM against the expected CRCs |
+| **F2** | Bus, decoding/mirroring, КР580ВВ55А, port `0FCH`, 2 MHz timing | the monitor boots and shows `-` after `СБ` |
+| **F3** | ROM transcription and verification | rebuilt `monitor.bin` == reassembled, byte for byte |
+| **F4** | Headless frontend: load `.bin`/Intel HEX, run N cycles, dump registers/memory/display | criterion 2 passes headless |
+| **F5** | Multiplexing persistence model | **criterion 3**: the naive program differs from HELLO, the corrected one matches |
+| **F6** | Full panel and graphical frontend | the monitor is operable with the mouse |
+| **F7** | Debugger: breakpoints, stepping by instruction and machine cycle, register and memory editing; disassembler | **criterion 4** |
+| **F8** | Save/restore full state | save→restore→continue yields an identical trace |
+| **F9** | Assembler + portable packaging | starts on a clean VM |
 
-Commits pequeños, uno por unidad coherente, en español, con el `qué` y el
-`por qué`.
+### The multiplexing model (F5)
 
-### Modelo del multiplexado (F5) — cómo lo voy a hacer
+Not six digits with independent state, but **a time integrator per (digit,
+segment) pair**: 48 energy accumulators. As simulated time advances, each pair
+(digit selected in PORTA × segment active in PORTB) accumulates the elapsed
+interval, and all of them decay with a persistence constant of the order of
+the real display's. The frontend draws the resulting intensity. With this:
 
-No seis dígitos con estado propio, sino **un integrador temporal por
-(dígito, segmento)**: 48 acumuladores de energía. Cada vez que avanza el
-tiempo simulado, a cada par (dígito seleccionado en PORTA × segmento activo
-en PORTB) se le suma el intervalo transcurrido; todos decaen con una
-constante de persistencia del orden de la del indicador real. El frontend
-dibuja la intensidad resultante. Con esto:
+- a program that does not blank before changing segments lights two patterns
+  on the same digit during the same interval → ghosting, with no special-case
+  code simulating it;
+- the correct program produces a stable pattern;
+- the automated test compares the **time-averaged state** over a window,
+  independent of when the sample is taken.
 
-- el programa que no apaga antes de cambiar segmentos ilumina dos patrones
-  sobre el mismo dígito durante el mismo intervalo → fantasmeo, sin ningún
-  código especial que lo simule;
-- el programa correcto produce un patrón estable;
-- la prueba automatizada compara el **estado promediado** en una ventana de
-  tiempo, como pides, sin depender de en qué instante se muestree.
-
-La constante de persistencia es un parámetro con valor por defecto
-documentado, no un número mágico (ver DESCONOCIDOS.md §5).
+The persistence constant is a parameter with a documented default, not a
+magic number (see UNKNOWNS.md §5).
 
 ---
 
-## 6. Trazabilidad entregables ↔ plan
+## 6. Risks
 
-| Entregable | Dónde |
-|---|---|
-| 1. Núcleo sin dependencias, API documentada | `core/`, F0–F2, F5 |
-| 2. Frontend con panel completo | `frontend/`, F6 |
-| 3. Modo headless CLI | `cli/`, F4 |
-| 4. Desensamblador + ensamblador + .bin/Intel HEX | `tools/`, F3 y F9 |
-| 5. Depurador | `cli/` + `frontend/`, F7 |
-| 6. Save/restore | `core/machine.c`, F8 |
-| 7. README + DESCONOCIDOS.md | raíz, desde ya |
-
----
-
-## 7. Riesgos, ordenados por lo que pueden costar
-
-1. **Transcripción de 39 páginas de listado.** Es el trabajo más largo y el
-   más propenso a error silencioso. Mitigado por la doble verificación de §4:
-   un error de transcripción rompe la igualdad OBJ↔reensamblado.
-2. **Los esquemas están escaneados a poca resolución** (~2200×1600 px para
-   dibujos de formato A1). Leer el decodificador de direcciones
-   (`D15`, `D16` = К555ИД7) a nivel de pista puede no ser posible, y de ahí
-   sale el espejeo. Mitigado: el espejeo no afecta a que el monitor
-   funcione, sólo a la fidelidad en las zonas no pobladas. Ver
-   DESCONOCIDOS.md §1.
-3. **Orientación de los dígitos** (DESCONOCIDOS.md §3): afecta al criterio de
-   aceptación 3. Tiene resolución experimental limpia, la explico allí.
-4. **8080EXM tarda.** Se ejecuta en CI aparte, no en cada commit.
-
----
-
-## 8. Lo que te pido antes de empezar
-
-1. Visto bueno al lenguaje (C11 freestanding + Win32/SDL2) y al plan por fases.
-2. Una decisión sobre DESCONOCIDOS.md §3 (orientación de los dígitos): puedo
-   resolverlo yo por deducción del monitor, pero quiero que sepas que la
-   convención de tu encargo y la que se deduce del código apuntan en sentidos
-   opuestos.
-3. Si tienes o puedes conseguir un volcado real de la ROM, dímelo ahora:
-   cambia el orden de F3 y me ahorra el trabajo más largo del proyecto.
+1. **Transcribing 39 pages of listing.** The longest task and the one most
+   prone to silent error. Mitigated by the double verification of §4: a
+   transcription error breaks the OBJ↔reassembly equality.
+2. **The diagrams are scanned at low resolution** (~2200×1600 px for A1
+   drawings). Reading the address decoder (`D15`, `D16` = К555ИД7) at track
+   level may not be possible, and that is where mirroring comes from.
+   Mitigated: mirroring does not affect whether the monitor works, only
+   fidelity in unpopulated regions. See UNKNOWNS.md §1.
+3. **8080EXM is slow.** It runs as a separate target, not on every commit.

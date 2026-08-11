@@ -1,7 +1,7 @@
-/* platform_sdl2.c — ventana y entrada con SDL2, para Linux y macOS.
+/* platform_sdl2.c — window and input via SDL2, for Linux and macOS.
  *
- * En Windows no se usa: allí va platform_win32.c, que no necesita nada
- * instalado. Ver PLAN.md §2.
+ * Not used on Windows: there platform_win32.c takes over, and it needs
+ * nothing installed. See PLAN.md §2.
  */
 
 #include "platform.h"
@@ -32,7 +32,7 @@ static int map_sdl(SDL_Keycode k)
 
 void plat_init(void)
 {
-    /* En POSIX la consola ya es UTF-8; no hay nada que preparar. */
+    /* On POSIX the console is already UTF-8; nothing to prepare. */
 }
 
 int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
@@ -50,7 +50,7 @@ int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     if (!g_ren) return 0;
 
-    /* Escalado con letterbox: el panel no se deforma al redimensionar. */
+    /* Letterboxed scaling: the panel does not distort when resized. */
     SDL_RenderSetLogicalSize(g_ren, lw, lh);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 
@@ -88,8 +88,8 @@ int plat_poll(plat_event_t *ev)
             case SDL_MOUSEBUTTONUP: {
                 float lx = 0.0f, ly = 0.0f;
                 if (e.button.button != SDL_BUTTON_LEFT) break;
-                /* SDL_RenderSetLogicalSize ya ajusta el escalado; se
-                 * convierte a coordenadas lógicas del panel. */
+                /* SDL_RenderSetLogicalSize already handles the scaling;
+                 * convert to the panel's logical coordinates. */
                 SDL_RenderWindowToLogical(g_ren, e.button.x, e.button.y, &lx, &ly);
                 ev->x = (int)lx;
                 ev->y = (int)ly;

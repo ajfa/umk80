@@ -1,7 +1,7 @@
-/* platform_win32.c — ventana y entrada con Win32 puro.
+/* platform_win32.c — window and input via plain Win32.
  *
- * Sólo user32 y gdi32, que van en el propio Windows: el .exe arranca en una
- * máquina limpia sin copiar ninguna DLL. Ver PLAN.md §2.
+ * Only user32 and gdi32, which ship with Windows itself: the .exe runs on a
+ * clean machine with no DLLs to copy. See PLAN.md §2.
  */
 
 #include "platform.h"
@@ -10,8 +10,8 @@
 #include <windows.h>
 
 static HWND      g_hwnd;
-static int       g_lw, g_lh;          /* tamaño lógico del panel */
-static int       g_cw, g_ch;          /* tamaño del área de cliente */
+static int       g_lw, g_lh;          /* panel logical size */
+static int       g_cw, g_ch;          /* client area size */
 static BITMAPINFO g_bmi;
 
 #define EVQ_SIZE 256
@@ -21,7 +21,7 @@ static int g_ev_head, g_ev_tail;
 static void ev_push(ev_kind_t kind, int key, int x, int y)
 {
     int next = (g_ev_head + 1) % EVQ_SIZE;
-    if (next == g_ev_tail) return;    /* cola llena: se descarta */
+    if (next == g_ev_tail) return;    /* queue full: drop it */
     g_evq[g_ev_head].kind = kind;
     g_evq[g_ev_head].key  = key;
     g_evq[g_ev_head].x    = x;
@@ -44,7 +44,7 @@ static int map_vk(WPARAM vk)
     }
 }
 
-/* Coordenadas de ventana -> coordenadas lógicas del panel. */
+/* Window coordinates -> the panel's logical coordinates. */
 static void to_logical(int wx, int wy, int *lx, int *ly)
 {
     *lx = (g_cw > 0) ? (wx * g_lw) / g_cw : 0;
@@ -53,8 +53,8 @@ static void to_logical(int wx, int wy, int *lx, int *ly)
 
 void plat_init(void)
 {
-    /* cmd.exe arranca en la página de códigos 850 (o la 437), en la que los
-     * bytes UTF-8 salen como galimatías. Ver la nota del README. */
+    /* cmd.exe starts in code page 850 (or 437), where UTF-8 bytes come out
+     * as gibberish. See the note in the README. */
     SetConsoleOutputCP(CP_UTF8);
 }
 
@@ -72,10 +72,10 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
             return 0;
 
         case WM_ERASEBKGND:
-            return 1;                    /* lo pinta plat_present */
+            return 1;                    /* plat_present paints it */
 
         case WM_KEYDOWN:
-            if (!(lp & (1 << 30))) {     /* ignorar autorrepetición */
+            if (!(lp & (1 << 30))) {     /* ignore auto-repeat */
                 int k = map_vk(wp);
                 if (k) ev_push(EV_KEYDOWN, k, 0, 0);
             }
@@ -120,9 +120,9 @@ int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
     wh = lh * scale_num / scale_den;
     g_cw = ww; g_ch = wh;
 
-    /* El título lleva cirílico. Con la API -A, Windows interpretaría los
-     * bytes UTF-8 en la página ANSI del sistema y saldría «Ð£ÐœÐš-80». Hay
-     * que pasar por UTF-16 y usar la API ancha de punta a punta. */
+    /* The title contains Cyrillic. With the -A API, Windows would interpret
+     * the UTF-8 bytes in the system ANSI code page and render «Ð£ÐœÐš-80».
+     * It has to go through UTF-16, using the wide API end to end. */
     if (MultiByteToWideChar(CP_UTF8, 0, title, -1, wtitle,
                             (int)(sizeof wtitle / sizeof wtitle[0])) == 0) {
         wtitle[0] = L'U'; wtitle[1] = L'M'; wtitle[2] = L'K'; wtitle[3] = L'\0';
@@ -131,8 +131,8 @@ int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
     ZeroMemory(&wc, sizeof wc);
     wc.lpfnWndProc   = wndproc;
     wc.hInstance     = GetModuleHandleW(NULL);
-    /* IDC_ARROW no es una cadena sino un átomo entero disfrazado de puntero;
-     * con la API ancha hay que presentarlo como LPCWSTR. */
+    /* IDC_ARROW is not a string but an integer atom disguised as a pointer;
+     * with the wide API it has to be presented as an LPCWSTR. */
     wc.hCursor       = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW);
     wc.lpszClassName = L"UMK80Panel";
     wc.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -150,7 +150,7 @@ int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
     ZeroMemory(&g_bmi, sizeof g_bmi);
     g_bmi.bmiHeader.biSize        = sizeof g_bmi.bmiHeader;
     g_bmi.bmiHeader.biWidth       = lw;
-    g_bmi.bmiHeader.biHeight      = -lh;      /* de arriba abajo */
+    g_bmi.bmiHeader.biHeight      = -lh;      /* top-down */
     g_bmi.bmiHeader.biPlanes      = 1;
     g_bmi.bmiHeader.biBitCount    = 32;
     g_bmi.bmiHeader.biCompression = BI_RGB;

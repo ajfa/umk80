@@ -1,13 +1,13 @@
-/* ghosting.c — criterio de aceptación 3 del encargo.
+/* ghosting.c — acceptance criterion 3.
  *
- * Dos versiones del mismo programa «HELLO», tomadas literalmente del
- * encargo (y del artículo de eax.me). La primera no apaga los indicadores
- * antes de cambiar la máscara de segmentos y TIENE que producir fantasmeo:
- * cada dígito comparte su tiempo entre su letra y la del dígito anterior.
- * La segunda apaga primero y tiene que mostrar HELLO limpio.
+ * Two versions of the same «HELLO» program, taken from the eax.me article.
+ * The first does not blank the displays before changing the segment mask and
+ * MUST produce ghosting: each digit shares its time between its own letter
+ * and the previous digit's. The second blanks first and must show a clean
+ * HELLO.
  *
- * La comparación es sobre el estado PROMEDIADO del display, no sobre una
- * instantánea, para que no dependa del momento del muestreo.
+ * The comparison is over the TIME-AVERAGED display state, not a snapshot, so
+ * that it does not depend on when the sample is taken.
  */
 
 #include "umk80/umk80.h"
@@ -15,8 +15,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Arranque: programa el КР580ВВ55А igual que hace el monitor
- * (МОН: MVI A, NOT CNTRWRD -> 89h) y salta al programa de usuario. */
+/* Bootstrap: programs the КР580ВВ55А exactly as the monitor does
+ * (МОН: MVI A, NOT CNTRWRD -> 89h) and jumps to the user program. */
 static const uint8_t BOOTSTRAP[] = {
     0x3E, 0x89,             /* MVI A,89H     ; PA sal., PB sal., PC ent. */
     0xD3, 0xFB,             /* OUT 0FBH                                  */
@@ -24,9 +24,8 @@ static const uint8_t BOOTSTRAP[] = {
 };
 #define BOOTSTRAP_ADDR 0x0980u
 
-/* Versión ingenua: OUT 0F8H selecciona el dígito ANTES de fijar sus
- * segmentos, de modo que durante ese intervalo el dígito luce la máscara
- * del dígito anterior. */
+/* Naive version: OUT 0F8H selects the digit BEFORE setting its segments, so
+ * during that interval the digit displays the previous digit's mask. */
 static const uint8_t NAIVE[] = {
     0x06, 0x01,             /* 0800  MVI B,01H   */
     0x0E, 0x05,             /* 0802  MVI C,05H   */
@@ -45,8 +44,8 @@ static const uint8_t NAIVE[] = {
     0x76, 0x79, 0x38, 0x38, 0x3F   /* 0818  'H','E','L','L','O' */
 };
 
-/* Versión corregida: apaga todos los indicadores (SUB A / OUT 0F8H), fija
- * los segmentos y sólo entonces selecciona el dígito. */
+/* Corrected version: blanks all displays (SUB A / OUT 0F8H), sets the
+ * segments, and only then selects the digit. */
 static const uint8_t FIXED[] = {
     0x06, 0x01,             /* 0800  MVI B,01H   */
     0x0E, 0x05,             /* 0802  MVI C,05H   */
@@ -67,9 +66,9 @@ static const uint8_t FIXED[] = {
     0x76, 0x79, 0x38, 0x38, 0x3F   /* 081B  'H','E','L','L','O' */
 };
 
-/* 'H','E','L','L','O' y el sexto indicador apagado. El programa arranca con
- * B = 01h y rota a la izquierda, luego las letras caen en los bits 0..4 de
- * PORTA, que son los cinco indicadores de la izquierda (DESCONOCIDOS §3). */
+/* 'H','E','L','L','O' with the sixth display dark. The program starts with
+ * B = 01h and rotates left, so the letters land on PORTA bits 0..4, which are
+ * the five leftmost displays (UNKNOWNS §3). */
 static const uint8_t HELLO[UMK_DIGITS] = { 0x76, 0x79, 0x38, 0x38, 0x3F, 0x00 };
 
 static const char *SEGNAME = "ABCDEFG.";
@@ -79,7 +78,7 @@ static void print_pattern(const char *label, const uint8_t p[UMK_DIGITS])
     unsigned i, s;
     printf("  %-10s", label);
     for (i = 0; i < UMK_DIGITS; i++) printf(" %02X", p[i]);
-    printf("   segmentos:");
+    printf("   segments:");
     for (i = 0; i < UMK_DIGITS; i++) {
         printf(" [");
         for (s = 0; s < 7u; s++) putchar((p[i] & (1u << s)) ? SEGNAME[s] : '-');
@@ -94,7 +93,7 @@ static void print_relative(umk_machine_t *m)
     unsigned i, s;
     umk_display_relative(m, rel);
     for (i = 0; i < UMK_DIGITS; i++) {
-        printf("    dígito %u (%s):", i, i == 0 ? "izq" : (i == 5 ? "der" : "   "));
+        printf("    digit %u (%s):", i, i == 0 ? "left" : (i == 5 ? "right" : "    "));
         for (s = 0; s < 7u; s++) printf(" %c=%3u", SEGNAME[s], rel[i][s]);
         putchar('\n');
     }
@@ -107,8 +106,8 @@ static void run_program(umk_machine_t *m, const uint8_t *prog, size_t len)
     umk_load_ram(m, BOOTSTRAP_ADDR, BOOTSTRAP, sizeof BOOTSTRAP);
     m->cpu.pc = BOOTSTRAP_ADDR;
 
-    /* Un arranque largo para que se estabilice, y luego una ventana limpia
-     * de 100 ms de tiempo simulado sobre la que promediar. */
+    /* A long warm-up so it settles, then a clean window of simulated time to
+     * average over. */
     umk_run_cycles(m, 200000u);
     umk_display_clear_accumulator(m);
     umk_run_cycles(m, 200000u);
@@ -120,42 +119,42 @@ int main(void)
     uint8_t naive_pat[UMK_DIGITS], fixed_pat[UMK_DIGITS];
     int ok = 1;
 
-    /* Umbral bajo: recoge también la letra intrusa del fantasmeo, que en la
-     * versión ingenua ocupa alrededor del 40 % del tiempo de cada dígito. */
+    /* Low threshold: it also picks up the intruding ghost letter, which in
+     * the naive version occupies about 40 % of each digit's time. */
     const uint8_t THRESHOLD = 25u;
 
-    printf("=== Criterio 3: fidelidad del multiplexado ===\n\n");
-    printf("Patrón esperado para HELLO:\n");
+    printf("=== Criterion 3: multiplexing fidelity ===\n\n");
+    printf("Expected pattern for HELLO:\n");
     print_pattern("HELLO", HELLO);
 
-    printf("\n-- versión ingenua (no apaga antes de cambiar segmentos) --\n");
+    printf("\n-- naive version (does not blank before changing segments) --\n");
     run_program(&m, NAIVE, sizeof NAIVE);
     umk_display_pattern(&m, THRESHOLD, naive_pat);
-    print_pattern("ingenua", naive_pat);
+    print_pattern("naive", naive_pat);
     print_relative(&m);
 
-    printf("\n-- versión corregida (apaga, fija segmentos, selecciona) --\n");
+    printf("\n-- corrected version (blank, set segments, then select) --\n");
     run_program(&m, FIXED, sizeof FIXED);
     umk_display_pattern(&m, THRESHOLD, fixed_pat);
-    print_pattern("corregida", fixed_pat);
+    print_pattern("corrected", fixed_pat);
     print_relative(&m);
 
-    printf("\n=== veredicto ===\n");
+    printf("\n=== verdict ===\n");
 
     if (memcmp(naive_pat, HELLO, sizeof HELLO) == 0) {
-        printf("FALLO: la versión ingenua coincide con HELLO; no hay fantasmeo.\n");
+        printf("FAIL: the naive version matches HELLO; there is no ghosting.\n");
         ok = 0;
     } else {
-        printf("OK: la versión ingenua DIFIERE de HELLO (fantasmeo presente).\n");
+        printf("OK: the naive version DIFFERS from HELLO (ghosting present).\n");
     }
 
     if (memcmp(fixed_pat, HELLO, sizeof HELLO) != 0) {
-        printf("FALLO: la versión corregida NO coincide con HELLO.\n");
+        printf("FAIL: the corrected version does NOT match HELLO.\n");
         ok = 0;
     } else {
-        printf("OK: la versión corregida coincide exactamente con HELLO.\n");
+        printf("OK: the corrected version matches HELLO exactly.\n");
     }
 
-    printf("\n===== %s =====\n", ok ? "CRITERIO 3 CUMPLIDO" : "CRITERIO 3 NO CUMPLIDO");
+    printf("\n===== %s =====\n", ok ? "CRITERION 3 MET" : "CRITERION 3 NOT MET");
     return ok ? 0 : 1;
 }

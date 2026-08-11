@@ -1,12 +1,12 @@
 #!/bin/sh
 # =====================================================================
-#  Arma el paquete portable de Linux: build/umk80-linux.tar.gz
+#  Builds the portable Linux package: build/umk80-linux.tar.gz
 #
-#  Va con FUENTES, no con binarios. El paquete está probado de punta a punta
-#  en Ubuntu 22.04 (compila, pasa las cuatro comprobaciones y abre la ventana
-#  SDL2), pero un binario de Linux ata a una versión concreta de glibc y de
-#  SDL2, y aquí no gana nada: compilar son unos segundos y el run.sh del
-#  paquete lo hace en un solo comando.
+#  It ships SOURCES, not binaries. The package is tested end to end on Ubuntu
+#  22.04 (it builds, passes the four acceptance checks and opens the SDL2
+#  window), but a Linux binary would pin a particular glibc and SDL2 and gain
+#  nothing here: compiling takes seconds and the package's run.sh does it in a
+#  single command.
 # =====================================================================
 set -e
 cd "$(dirname "$0")/.."
@@ -26,13 +26,13 @@ cp docs/FUENTES.md "$STAGE/docs/"
 cp pack/run.sh "$STAGE/"
 chmod +x "$STAGE/run.sh"
 
-# Fuera lo que no tiene sentido distribuir.
+# Drop what makes no sense to distribute.
 rm -rf "$STAGE/tools/pack.cmd" "$STAGE/tools/pack.sh"
 rm -rf "$STAGE/docs/ref" "$STAGE/docs/pages" "$STAGE/docs/umk_docs.pdf"
 
 ( cd build/pack && tar czf ../umk80-linux.tar.gz umk80-linux )
 
-echo "Listo: build/umk80-linux.tar.gz"
+echo "Done: build/umk80-linux.tar.gz"
 echo
-echo "En la máquina de destino:"
+echo "On the target machine:"
 echo "  tar xzf umk80-linux.tar.gz && cd umk80-linux && ./run.sh"

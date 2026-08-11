@@ -1,12 +1,12 @@
-/* i8080.h — núcleo de CPU Intel 8080 / КР580ВМ80А.
+/* i8080.h — Intel 8080 / КР580ВМ80А CPU core.
  *
- * Independiente (freestanding): sólo <stdint.h>, <stddef.h> y <stdbool.h>.
- * Sin asignación dinámica, sin estado global, sin E/S.
+ * Freestanding: only <stdint.h>, <stddef.h> and <stdbool.h>. No dynamic
+ * allocation, no global state, no I/O.
  *
- * `i8080_t` es un POD puro: no contiene punteros. Guardar y restaurar el
- * estado de la CPU es una copia de la estructura. Los accesos al exterior
- * van por `i8080_bus_t`, que el llamante pasa en cada paso y que NO forma
- * parte del estado.
+ * `i8080_t` is a plain POD: it holds no pointers. Saving and restoring the
+ * CPU state is a struct copy. Access to the outside world goes through
+ * `i8080_bus_t`, which the caller passes on every step and which is NOT part
+ * of the state.
  */
 #ifndef UMK80_I8080_H
 #define UMK80_I8080_H
@@ -19,16 +19,16 @@
 extern "C" {
 #endif
 
-/* --- Palabra de estado del 8080 -----------------------------------------
+/* --- 8080 status word ----------------------------------------------------
  *
- * El КР580ВМ80А emite en D0..D7, durante SYNC, una palabra de estado que en
- * el УМК-80 queda enganchada en el registro D4 y se muestra en la fila de
- * LEDs «СОСТОЯНИЕ». Los rótulos del panel, de bit 7 a bit 0, son:
+ * During SYNC the КР580ВМ80А puts a status word on D0..D7. On the УМК-80 it
+ * is latched by register D4 and shown on the «СОСТОЯНИЕ» LED row. The panel
+ * legends, from bit 7 down to bit 0, are:
  *
  *   MEMR  INP  M1  OUT  HLTA  STACK  WO  INTA
  *
- * Ojo con WO (bit 1): es activo a nivel bajo. WO = 1 significa lectura;
- * WO = 0 significa escritura o salida.
+ * Mind WO (bit 1): it is active low. WO = 1 means a read; WO = 0 means a
+ * write or an output.
  */
 #define I8080_ST_INTA   0x01u
 #define I8080_ST_WO     0x02u
@@ -39,7 +39,7 @@ extern "C" {
 #define I8080_ST_INP    0x40u
 #define I8080_ST_MEMR   0x80u
 
-/* Las diez palabras de estado que el 8080 puede emitir. */
+/* The ten status words an 8080 can emit. */
 #define I8080_CYC_FETCH     (I8080_ST_MEMR | I8080_ST_M1 | I8080_ST_WO)  /* 0xA2 */
 #define I8080_CYC_MEMR      (I8080_ST_MEMR | I8080_ST_WO)                /* 0x82 */
 #define I8080_CYC_MEMW      (0x00u)                                      /* 0x00 */
@@ -52,50 +52,50 @@ extern "C" {
 #define I8080_CYC_INTA_HALT (I8080_ST_INTA | I8080_ST_HLTA | \
                              I8080_ST_M1 | I8080_ST_WO)                  /* 0x2B */
 
-/* --- Banderas del registro de condiciones (PSW) --------------------------
+/* --- Condition flags (PSW) -----------------------------------------------
  *
- * En el 8080 el bit 1 vale siempre 1 y los bits 3 y 5 valen siempre 0.
- * Esto se preserva en PUSH PSW, en POP PSW y en el propio registro.
+ * On the 8080 bit 1 always reads as 1 and bits 3 and 5 always read as 0.
+ * That invariant is preserved in the register, in PUSH PSW and in POP PSW.
  */
 #define I8080_F_C   0x01u
-#define I8080_F_ONE 0x02u   /* siempre 1 */
+#define I8080_F_ONE 0x02u   /* always 1 */
 #define I8080_F_P   0x04u
 #define I8080_F_AC  0x10u
 #define I8080_F_Z   0x40u
 #define I8080_F_S   0x80u
 
-/* Máscara de los bits que existen realmente. */
+/* Mask of the bits that actually exist. */
 #define I8080_F_MASK (I8080_F_C | I8080_F_P | I8080_F_AC | I8080_F_Z | I8080_F_S)
 
-/* --- Estado de la CPU ---------------------------------------------------- */
+/* --- CPU state ------------------------------------------------------------ */
 typedef struct {
     uint8_t  a, f;
     uint8_t  b, c, d, e, h, l;
     uint16_t sp, pc;
 
-    bool     inte;          /* biestable de habilitación de interrupción */
-    bool     halted;        /* dentro de HLT */
-    bool     int_pending;   /* hay una petición de interrupción sin atender */
-    uint8_t  int_vector;    /* opcode que la lógica externa mete en el ciclo INTA */
-    uint8_t  int_delay;     /* tras EI aún se ejecuta una instrucción más antes
-                             * de poder reconocer una interrupción; DI lo anula */
+    bool     inte;          /* interrupt enable flip-flop */
+    bool     halted;        /* inside HLT */
+    bool     int_pending;   /* an interrupt request is waiting */
+    uint8_t  int_vector;    /* opcode the external logic jams in during INTA */
+    uint8_t  int_delay;     /* after EI one more instruction executes before an
+                             * interrupt can be recognised; DI cancels it */
 
-    uint64_t cycles;        /* ciclos de reloj T consumidos desde el reset */
+    uint64_t cycles;        /* T states consumed since reset */
 
-    /* Traza de ciclos de máquina de la última instrucción ejecutada.
-     * Sirve al panel de LEDs y al modo paso por ciclo de máquina (КМ/ЦК).
-     * El 8080 no pasa de 5 ciclos de máquina por instrucción. */
+    /* Machine-cycle trace of the last instruction executed. Feeds the LED
+     * panel and the machine-cycle single-step mode (КМ/ЦК). An 8080 never
+     * exceeds 5 machine cycles per instruction. */
     uint8_t  mc_count;
     uint8_t  mc_status[6];
     uint16_t mc_addr[6];
     uint8_t  mc_data[6];
 } i8080_t;
 
-/* --- Interfaz con el exterior -------------------------------------------
+/* --- Interface to the outside world --------------------------------------
  *
- * `status` es la palabra I8080_CYC_* del ciclo de máquina en curso, de modo
- * que el sistema puede distinguir una búsqueda de instrucción de una lectura
- * de dato o de pila sin reconstruirlo.
+ * `status` is the I8080_CYC_* word of the machine cycle in progress, so the
+ * system can tell an opcode fetch from a data read or a stack access without
+ * having to reconstruct it.
  */
 typedef struct {
     uint8_t (*read)(void *ud, uint16_t addr, uint8_t status);
@@ -105,34 +105,34 @@ typedef struct {
     void    *ud;
 } i8080_bus_t;
 
-/* --- API ----------------------------------------------------------------- */
+/* --- API ------------------------------------------------------------------ */
 
-/* Pone la CPU en el estado que tiene tras RESET: PC = 0, INTE = 0,
- * HLTA = 0. Los registros del 8080 real quedan indeterminados tras el
- * reset; aquí se ponen a cero de forma reproducible. */
+/* Puts the CPU in its post-RESET state: PC = 0, INTE = 0, HLTA = 0. On real
+ * hardware the registers are undefined after reset; here they are zeroed so
+ * that runs are reproducible. */
 void i8080_reset(i8080_t *cpu);
 
-/* Ejecuta una instrucción completa (o atiende una interrupción pendiente).
- * Devuelve los ciclos de reloj T consumidos y los acumula en cpu->cycles.
- * Deja la traza de ciclos de máquina en cpu->mc_*. */
+/* Executes one complete instruction (or services a pending interrupt).
+ * Returns the T states consumed and adds them to cpu->cycles. Leaves the
+ * machine-cycle trace in cpu->mc_*. */
 unsigned i8080_step(i8080_t *cpu, const i8080_bus_t *bus);
 
-/* Solicita una interrupción. `vector` es el byte que la lógica externa
- * pondrá en el bus durante el ciclo INTA; en el УМК-80 el botón ПР genera
- * RST 7, o sea 0xFF. La petición se atiende en el siguiente i8080_step()
- * si INTE está activo. */
+/* Requests an interrupt. `vector` is the byte the external logic will place
+ * on the bus during the INTA cycle; on the УМК-80 the ПР button generates
+ * RST 7, i.e. 0xFF. The request is serviced on the next i8080_step() if INTE
+ * is set. */
 void i8080_interrupt(i8080_t *cpu, uint8_t vector);
 
-/* Ciclos de reloj T de un opcode, sin contar el camino tomado en saltos
- * y llamadas condicionales (para ésos devuelve el caso NO tomado). Útil
- * para el desensamblador y para presupuestos de tiempo. */
+/* T states for an opcode, not counting the taken path of conditional jumps
+ * and calls (for those it returns the NOT-taken case). Useful for the
+ * disassembler and for timing budgets. */
 unsigned i8080_opcode_cycles(uint8_t opcode);
 
-/* Longitud en bytes de un opcode: 1, 2 o 3. */
+/* Length of an opcode in bytes: 1, 2 or 3. */
 unsigned i8080_opcode_length(uint8_t opcode);
 
-/* true si el opcode no está documentado por Intel (los siete NOP alternativos,
- * el JMP alternativo, el RET alternativo y los tres CALL alternativos). */
+/* True if the opcode is undocumented by Intel (the seven alternative NOPs,
+ * the alternative JMP, the alternative RET and the three alternative CALLs). */
 bool i8080_opcode_undocumented(uint8_t opcode);
 
 #ifdef __cplusplus

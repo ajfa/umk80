@@ -1,54 +1,54 @@
-# Emulador del УМК-80
+# УМК-80 emulator
 
-Emulador del **УМК-80** (Учебный микропроцессорный комплект), el banco
-didáctico soviético que fabricó la asociación ВЭФ de Riga, referencia
-`РР3.059.004` en maletín y `РР3.059.004-01` de sobremesa. Es una máquina de
-enseñanza construida alrededor del КР580ВМ80А, el clon soviético del Intel
-8080.
+Emulator of the **УМК-80** (*Учебный микропроцессорный комплект*, "training
+microprocessor kit"), a Soviet educational trainer built by the **ВЭФ**
+association in Riga, Latvian SSR — part number `РР3.059.004` (briefcase) and
+`РР3.059.004-01` (desktop). It is a teaching machine built around the
+КР580ВМ80А, the Soviet clone of the Intel 8080.
 
-Emula la CPU con exactitud de ciclos, los seis indicadores de siete segmentos
-multiplexados con su persistencia real, la matriz de teclado de 24 teclas, las
-tres filas de LEDs del panel y el modo de ejecución paso a paso, por
-instrucción o por ciclo de máquina.
+It emulates the CPU cycle-accurately, the six multiplexed seven-segment
+displays *with their real persistence*, the 24-key keyboard matrix, the three
+rows of panel LEDs, and single-step execution both by instruction and by
+machine cycle.
 
-**La ROM del monitor viene incluida**, reconstruida a partir del listado del
-ensamblador que trae la documentación original. Ver §«La ROM» más abajo.
+**The monitor ROM is included**, reconstructed from the assembler listing in
+the original factory documentation. See [The ROM](#the-rom) below.
 
 ---
 
-## Compilar
+## Building
 
-Hace falta un compilador C11 y nada más. El núcleo no usa siquiera la
-biblioteca estándar.
+You need a C11 compiler and nothing else. The core does not even use the
+standard library.
 
-### Windows (objetivo primario)
+### Windows (primary target)
 
 ```
 mingw32-make
 ```
 
-El frontend gráfico usa Win32 puro (`user32` + `gdi32`), que va en el propio
-sistema: el `.exe` arranca en una máquina limpia sin copiar ninguna DLL.
-Probado con el gcc 16.2 de MSYS2 (`C:\msys64\mingw64\bin`).
+The graphical frontend uses plain Win32 (`user32` + `gdi32`), which ships with
+Windows itself: the `.exe` runs on a clean machine with no DLLs to copy.
+Tested with gcc 16.2 from MSYS2 (`C:\msys64\mingw64\bin`).
 
-### Linux y macOS
+### Linux and macOS
 
 ```bash
 make
 ```
 
-El frontend gráfico usa SDL2 (`libsdl2-dev` en Debian y derivados). Todo lo
-demás — núcleo, herramientas, pruebas y modo sin ventana — compila sin
-dependencia alguna.
+The graphical frontend uses SDL2 (`libsdl2-dev` on Debian and derivatives).
+Everything else — core, tools, tests and headless mode — builds with no
+dependencies at all.
 
-Verificado en Ubuntu 22.04 (WSL2, gcc 11, SDL2 2.0.20): compila sin un solo
-aviso, pasa las cuatro comprobaciones de aceptación y la verificación cruzada
-de la ROM, y la ventana SDL2 se abre y se opera con el teclado. 8080EXM tarda
-34 s ahí. En macOS no se ha probado.
+Verified on Ubuntu 22.04 (WSL2, gcc 11, SDL2 2.0.20): builds without a single
+warning, passes all four acceptance checks and the ROM cross-verification, and
+the SDL2 window opens and responds to the keyboard. 8080EXM takes 34 s there.
+macOS has not been tested.
 
-### Con CMake
+### With CMake
 
-Se incluye un `CMakeLists.txt` equivalente para quien lo prefiera:
+An equivalent `CMakeLists.txt` is included if you prefer it:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
@@ -56,189 +56,194 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
 
 ---
 
-## Ejecutar
+## Running
 
-### Panel gráfico
+### Graphical panel
 
 ```
 mingw32-make run
 ```
 
-o directamente `build/umk80 --rom rom/monitor.bin`.
+or directly `build/umk80 --rom rom/monitor.bin`.
 
-Se opera con el ratón sobre las teclas dibujadas o con el teclado del
-anfitrión:
+Drive it by clicking the drawn keys, or from the host keyboard:
 
-| Anfitrión | УМК-80 |
+| Host | УМК-80 |
 |---|---|
-| `0`–`9`, `A`–`F` | teclas hexadecimales |
+| `0`–`9`, `A`–`F` | hexadecimal keys |
 | `F1` … `F6` | `П` `РГ` `СТ` `КС` `ЗК` `ПМ` |
-| espacio | separador de parámetros |
-| Intro | `ВП` (fin de directiva) |
-| Esc | `СБ` (сброс) |
-| Retroceso | `ПР` (прерывание) |
-| `F8` | `ШГ` (шаг) |
-| `F9` | `РБ/ШГ` — enclava el modo paso a paso |
-| `F10` | `КМ/ЦК` — el paso pasa a ser por ciclo de máquina |
+| space | parameter separator |
+| Enter | `ВП` (end of directive) |
+| Esc | `СБ` (reset) |
+| Backspace | `ПР` (interrupt) |
+| `F8` | `ШГ` (step) |
+| `F9` | `РБ/ШГ` — latches single-step mode |
+| `F10` | `КМ/ЦК` — makes each step one machine cycle |
 
-También hay dos modos sin ventana, útiles para pruebas y para capturas:
+There are also two windowless modes, handy for tests and screenshots:
 
 ```
 build/umk80 --rom rom/monitor.bin --keys "p0800.3E.AA.C3.00.08.>" --shot panel.ppm
 ```
 
-### Depurador y modo sin ventana
+### Debugger and headless mode
 
-`umkcli` es a la vez el modo headless y el depurador:
+`umkcli` is both the headless mode and the debugger:
 
 ```bash
-build/umkcli --rom rom/monitor.bin                  # interactivo
+build/umkcli --rom rom/monitor.bin                  # interactive
 build/umkcli --rom rom/monitor.bin -c "run 400000" -c display
 ```
 
-Órdenes principales (`help` da la lista completa):
+Main commands (`help` lists them all):
 
-| Orden | Qué hace |
+| Command | What it does |
 |---|---|
-| `load <f> [dir]`, `loadhex <f>` | carga `.bin` o Intel HEX |
-| `save`, `savehex` | vuelca memoria |
-| `run [ciclos]`, `go <dir>` | ejecuta hasta el tope o hasta un punto de ruptura |
-| `step [n]`, `cycle [n]` | paso por instrucción / por ciclo de máquina |
-| `bp <dir>`, `bp list`, `bp del`, `bp clear` | puntos de ruptura |
-| `regs`, `reg <r> <v>`, `mem`, `poke`, `dis` | inspección y edición |
-| `key <nombre>`, `keys a,b,c` | pulsa teclas del panel |
-| `display`, `panel` | estado de los indicadores y de los LEDs |
-| `state save\|load <f>` | guarda y restaura la máquina entera |
+| `load <f> [addr]`, `loadhex <f>` | load raw binary or Intel HEX |
+| `save`, `savehex` | dump memory |
+| `run [cycles]`, `go <addr>` | run to a cycle budget or to a breakpoint |
+| `step [n]`, `cycle [n]` | step by instruction / by machine cycle |
+| `bp <addr>`, `bp list`, `bp del`, `bp clear` | breakpoints |
+| `regs`, `reg <r> <v>`, `mem`, `poke`, `dis` | inspect and edit |
+| `key <name>`, `keys a,b,c` | press panel keys |
+| `display`, `panel` | seven-segment and LED state |
+| `state save\|load <f>` | save and restore the whole machine |
 
-### Herramientas sueltas
+### Standalone tools
 
 ```bash
-build/umkasm programa.asm programa.bin      # ensamblador 8080
-build/umkdis programa.bin --org 0x800       # desensamblador
+build/umkasm program.asm program.bin        # 8080 assembler
+build/umkdis program.bin --org 0x800        # disassembler
 build/umkrom rom/monitor.lst rom/monitor.bin --asm rom/monitor.asm
 ```
 
 ---
 
-## Comprobar que funciona
+## Checking that it works
 
 ```
 mingw32-make test
 ```
 
-Ejecuta las cuatro comprobaciones que pide el encargo:
+runs the four acceptance checks:
 
-1. **Validación de la CPU** — TST8080, 8080PRE y CPUTEST. La cuarta,
-   8080EXM, tarda varios minutos y va aparte: `make test-exm`. Las cuatro
-   pasan, y 8080EXM con los 26 CRC correctos.
-2. **El monitor real** — teclea la secuencia completa del encargo contra el
-   monitor auténtico y comprueba que `РГ` + `A` muestra `A - AA`.
-3. **Fidelidad del multiplexado** — el programa que no apaga los indicadores
-   antes de cambiar los segmentos produce fantasmeo; el corregido muestra
-   `HELLO` limpio.
-4. **Paso a paso** — una pulsación de `ШГ` = una instrucción con `РБ/ШГ`
-   enclavado, y = un ciclo de máquina si además lo está `КМ/ЦК`.
+1. **CPU validation** — TST8080, 8080PRE and CPUTEST. The fourth, 8080EXM,
+   takes minutes and runs separately with `make test-exm`. All four pass, and
+   8080EXM with all 26 CRCs correct.
+2. **The real monitor** — types the full key sequence into the authentic
+   monitor ROM and checks that `РГ` + `A` displays `A - AA`.
+3. **Multiplexing fidelity** — a program that does *not* blank the displays
+   before changing the segment mask must produce ghosting; the corrected one
+   must show a clean `HELLO`.
+4. **Single-step** — one press of `ШГ` advances exactly one instruction with
+   `РБ/ШГ` latched, and exactly one machine cycle if `КМ/ЦК` is latched too.
 
-Y además `make verify-rom`, que se explica a continuación.
+Plus `make verify-rom`, explained next.
 
 ---
 
-## La ROM
+## The ROM
 
-No existe volcado público de la ROM del УМК-80. Ésta se ha **reconstruido a
-partir del listado del ensamblador** que incluye la documentación escaneada
-(`Р.Р.00004-01 12 01-1`, «Системный монитор. Текст программы», 1986, литера
-О₁, impreso con el ISIS-II 8080/8085 MACRO ASSEMBLER V4.0).
+No public dump of the УМК-80 monitor ROM exists. This one is **reconstructed
+from the assembler listing** included in the scanned factory documentation
+(`Р.Р.00004-01 12 01-1`, «Системный монитор. Текст программы», 1986,
+литера О<sub>I</sub>, printed by the ISIS-II 8080/8085 MACRO ASSEMBLER V4.0).
 
-La transcripción está en [`rom/monitor.lst`](rom/monitor.lst), con la columna
-de bytes objeto y la de fuente en paralelo, y se verifica por **dos vías
-independientes que tienen que coincidir**:
+The transcription lives in [`rom/monitor.lst`](rom/monitor.lst), with the
+object-code column and the source column side by side, and it is verified by
+**two independent paths that must agree**:
 
 ```
 make verify-rom
-  ->  VERIFICACIÓN OK: reensamblado == columna OBJ, 2048 bytes idénticos
+  ->  VERIFICATION OK: reassembled == OBJ column, 2048 bytes identical
 ```
 
-- `umkrom` reconstruye la imagen a partir de la columna `OBJ` del listado;
-- `umkasm` reensambla la columna de fuente.
+- `umkrom` rebuilds the image from the listing's `OBJ` column;
+- `umkasm` reassembles the source column.
 
-Para que un error de transcripción sobreviviera tendría que estar duplicado
-exactamente en las dos columnas. Y encima la imagen resultante arranca y hace
-funcionar el equipo, que es la tercera comprobación.
+For a transcription error to survive, it would have to be duplicated exactly
+in both columns. On top of that, the resulting image boots and drives the
+machine, which is the third check.
 
-Si consigues un volcado binario real de 1 KB, tiene prioridad: cárgalo con
-`--rom` y el núcleo lo usará tal cual.
+If you get hold of a real 1 KB ROM dump, it takes priority: load it with
+`--rom` and the core will use it as is.
 
-**Contenido de la imagen** (2 KB, `0000h`–`07FFh`):
+**Image contents** (2 KB, `0000h`–`07FFh`):
 
 ```
-0000-03FF   Монитор
-0400-044B   ПРОГРАММАТОР УМК   (grabador de EPROM, también en el listado)
+0000-03FF   Монитор            (the monitor)
+0400-044B   ПРОГРАММАТОР УМК   (EPROM programmer, also in the listing)
 ```
 
 ---
 
-## Mapa de la máquina
+## Machine map
 
 ```
-0000-03FF   ПЗУ, monitor
-0400-07FF   ПЗУ, segunda mitad
-0800-0FFF   ОЗУ  (2 KB en la revisión documentada)
-   0FCE-0FF9   variables del monitor y tabla de registros
-   0FEE        vectores de interrupción en ОЗУ
-   0FFA-0FFF   búfer de regeneración del display (6 bytes)
+0000-03FF   ПЗУ (ROM), monitor
+0400-07FF   ПЗУ (ROM), second half
+0800-0FFF   ОЗУ (RAM), 2 KB in the documented revision
+   0FCE-0FF9   monitor variables and register table
+   0FEE        interrupt vector table in RAM
+   0FFA-0FFF   display refresh buffer (6 bytes)
 
-F8   КР580ВВ55А puerto A — selección de indicador y barrido de columnas
-F9   КР580ВВ55А puerto B — máscara de segmentos
-FA   КР580ВВ55А puerto C — filas del teclado (máscara 74h)
+F8   КР580ВВ55А port A — digit select and keyboard column scan
+F9   КР580ВВ55А port B — segment mask
+FA   КР580ВВ55А port C — keyboard rows (mask 74h)
 FB   КР580ВВ55А control
-FC   modo paso a paso (bit 0)
+FC   single-step mode (bit 0)
 ```
 
-Hay dos perfiles de placa seleccionables. El de por omisión es la revisión
-documentada (2 KB de ОЗУ); `--rev1` selecciona la anterior, con 1 KB espejado.
-El porqué está en [DESCONOCIDOS.md §1](DESCONOCIDOS.md) y en
-[PLAN.md §1.1-bis](PLAN.md).
+Two board profiles are selectable. The default is the documented revision
+(2 KB of RAM); `--rev1` selects the earlier one, with 1 KB mirrored. The
+reasoning is in [UNKNOWNS.md §1](UNKNOWNS.md) and [PLAN.md §1.1-bis](PLAN.md).
 
 ---
 
-## Estructura
+## Layout
 
 ```
-core/        núcleo: CPU, bus, ВВ55, indicadores, teclado, panel, paso a paso
-             — C11 independiente, sin libc, sin punteros en el estado
-frontend/    panel gráfico: Win32 puro en Windows, SDL2 en POSIX
-cli/         modo sin ventana y depurador
-tools/       ensamblador, desensamblador, reconstructor de la ROM
-rom/         transcripción del listado, fuente e imagen del monitor
-tests/       las cuatro comprobaciones de aceptación
-docs/        procedencia de las fuentes documentales
+core/        core: CPU, bus, ВВ55, displays, keyboard, panel, single-step
+             — freestanding C11, no libc, no pointers in the state
+frontend/    graphical panel: plain Win32 on Windows, SDL2 on POSIX
+cli/         headless mode and debugger
+tools/       assembler, disassembler, ROM reconstructor
+rom/         listing transcription, source and image of the monitor
+tests/       the four acceptance checks
+docs/        provenance of the documentary sources
 ```
 
-El núcleo no contiene lógica de monitor ni de interfaz: la ROM es enchufable y
-el panel se dibuja fuera. `umk_machine_t` no tiene punteros, así que guardar y
-restaurar el estado completo es copiar la estructura.
+The core contains no monitor logic and no interface logic: the ROM is
+pluggable and the panel is drawn outside it. `umk_machine_t` holds no
+pointers, so saving and restoring the entire machine state is a struct copy.
 
 ---
 
-## Documentos
+## Documents
 
-- **[PLAN.md](PLAN.md)** — el plan de trabajo, con lo que está verificado
-  documentalmente y de dónde sale cada dato.
-- **[DESCONOCIDOS.md](DESCONOCIDOS.md)** — todo lo que **no** se ha podido
-  confirmar, qué se sabe, por qué no basta y cómo se ha resuelto o cómo se
-  propone resolverlo. Se lee antes de fiarse de cualquier detalle fino.
-- **[docs/FUENTES.md](docs/FUENTES.md)** — de dónde sale cada documento, con
-  su SHA256.
+- **[PLAN.md](PLAN.md)** — the work plan, with what is documented and where
+  every fact comes from.
+- **[UNKNOWNS.md](UNKNOWNS.md)** — everything that could **not** be confirmed:
+  what is known, why it is not enough, and how it was resolved or how it could
+  be. Read it before trusting any fine detail.
+- **[docs/SOURCES.md](docs/SOURCES.md)** — where each document comes from,
+  with its SHA256.
 
-## Licencia y procedencia
+## Licence and provenance
 
-El código del emulador es obra propia. La ROM del monitor y su fuente
-proceden de documentación técnica soviética de 1986 de un fabricante que ya
-no existe, y se incluyen con fines de preservación; viven en `rom/`, separados
-del núcleo, y son sustituibles.
+The emulator — core, frontend, debugger, tools and tests — is original work
+and is released under the **[MIT licence](LICENSE)**.
 
-El panel está dibujado a mano a partir del plano del fabricante (Рис. 2 del
-ПС). Las fotografías de `docs/ref/`, que sirvieron para la paleta y las
-proporciones, son de sus autores y **no** forman parte de lo que se
-distribuye.
+**The `rom/` directory is outside that licence.** It holds the machine's
+monitor, transcribed from the 1986 factory listing: Soviet documentation whose
+corporate author no longer exists and over which the publisher of this
+repository holds no rights, and therefore cannot sublicense. It is included for
+preservation and interoperability — without the monitor the emulator does not
+boot, and no public ROM dump exists — kept separate from the core and
+replaceable by any other image via `--rom`. Details in
+[`rom/PROVENANCE.md`](rom/PROVENANCE.md).
+
+The panel is drawn from scratch using the manufacturer's own drawing (Рис. 2
+of the ПС). The photographs in `docs/ref/`, used for the palette and the
+proportions, belong to their authors and are **not** part of this repository
+nor of what it distributes.

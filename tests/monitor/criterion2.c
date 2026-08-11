@@ -1,12 +1,13 @@
-/* criterio2.c — criterio de aceptación 2 del encargo.
+/* criterion2.c — acceptance criterion 2.
  *
  *   СБ, П, 0800, _, 3E, _, AA, _, C3, _, 00, _, 08, _, ВП
- *   СТ, 0800, ВП        -> el programa corre en bucle
- *   ПР                  -> lo interrumpe
- *   РГ, A               -> el display muestra "A - AA"
+ *   СТ, 0800, ВП        -> the program runs in a loop
+ *   ПР                  -> interrupts it
+ *   РГ, A               -> the display shows "A - AA"
  *
- * Todo se hace pulsando teclas de la matriz real y leyendo el display real:
- * no se toca la memoria por detrás ni se llama a ninguna rutina del monitor.
+ * Everything is done by pressing keys of the real matrix and reading the real
+ * display: memory is not touched behind the scenes and no monitor routine is
+ * called directly.
  */
 
 #include "umk80/umk80.h"
@@ -15,20 +16,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --- teclado del УМК-80 --------------------------------------------------
+/* --- УМК-80 keyboard -----------------------------------------------------
  *
- * Matriz 6 columnas (bits de PORTA) x 4 filas (bits 2,4,5,6 de PORTC),
- * deducida de la rutina CONV del monitor (МОН hojas −31− y −32−):
+ * A 6-column (PORTA bits) x 4-row (PORTC bits 2,4,5,6) matrix, derived from
+ * the monitor's CONV routine (МОН sheets −31− and −32−):
  *
- *   - columnas 0 y 1 (PORTA bits 0,1) -> teclas de directiva
- *   - columnas 2..5  (PORTA bits 2..5) -> dígitos hexadecimales
- *   - el código de fila vale 0, 4, 8 o 12 para los bits 4, 6, 5 y 2
+ *   - columns 0 and 1 (PORTA bits 0,1) -> directive keys
+ *   - columns 2..5    (PORTA bits 2..5) -> hexadecimal digits
+ *   - the row code is 0, 4, 8 or 12 for bits 4, 6, 5 and 2
  *
- *   dígito   = (columna - 2) + código_de_fila
- *   función  = (columna) + código_de_fila / 2
+ *   digit    = (column - 2) + row_code
+ *   function = (column)     + row_code / 2
  *
- * Las filas se numeran aquí 0..3 = bits 2, 4, 5, 6 de PORTC, igual que en
- * el núcleo (umk80.h, ROW_BIT).
+ * Rows are numbered 0..3 here = PORTC bits 2, 4, 5, 6, the same as in the
+ * core (umk80.h, ROW_BIT).
  */
 #define ROW_B2 0u
 #define ROW_B4 1u
@@ -44,13 +45,13 @@ static const key_t KEY_DIGIT[16] = {
     {"C", 2, ROW_B2}, {"D", 3, ROW_B2}, {"E", 4, ROW_B2}, {"F", 5, ROW_B2}
 };
 
-static const key_t KEY_P     = {"П",  0, ROW_B4};   /* código 0 -> REPLM  */
-static const key_t KEY_RG    = {"РГ", 1, ROW_B4};   /* código 1 -> REPLRG */
-static const key_t KEY_ST    = {"СТ", 0, ROW_B6};   /* código 2 -> GOTO   */
-static const key_t KEY_SPACE = {"_",  0, ROW_B2};   /* código 6 -> SPACE  */
-static const key_t KEY_VP    = {"ВП", 1, ROW_B2};   /* código 7 -> CR     */
+static const key_t KEY_P     = {"П",  0, ROW_B4};   /* code 0 -> REPLM  */
+static const key_t KEY_RG    = {"РГ", 1, ROW_B4};   /* code 1 -> REPLRG */
+static const key_t KEY_ST    = {"СТ", 0, ROW_B6};   /* code 2 -> GOTO   */
+static const key_t KEY_SPACE = {"_",  0, ROW_B2};   /* code 6 -> SPACE  */
+static const key_t KEY_VP    = {"ВП", 1, ROW_B2};   /* code 7 -> CR     */
 
-/* --- utilidades ----------------------------------------------------------- */
+/* --- helpers -------------------------------------------------------------- */
 
 static const char *SEGNAME = "ABCDEFG.";
 
@@ -70,9 +71,9 @@ static void show_display(umk_machine_t *m, const char *label)
     putchar('\n');
 }
 
-/* El monitor antirrebota por software con un retardo de 10 ms (TIME = 850),
- * y luego espera a que la tecla se suelte. Hay que mantenerla pulsada más de
- * ese tiempo y soltarla bien. A 2 MHz, 10 ms son 20000 ciclos T. */
+/* The monitor debounces in software with a 10 ms delay (TIME = 850) and then
+ * waits for the key to be released. A key has to be held longer than that and
+ * released cleanly. At 2 MHz, 10 ms is 20000 T states. */
 #define HOLD_CYCLES    120000u
 #define RELEASE_CYCLES 120000u
 
@@ -101,11 +102,11 @@ static int load_rom(umk_machine_t *m, const char *path)
     if (!f) { perror(path); return 0; }
     n = fread(buf, 1, sizeof buf, f);
     fclose(f);
-    printf("ПЗУ: %s (%lu bytes)\n", path, (unsigned long)n);
+    printf("ROM: %s (%lu bytes)\n", path, (unsigned long)n);
     return umk_load_rom(m, 0, buf, n);
 }
 
-/* --- prueba ---------------------------------------------------------------- */
+/* --- the test -------------------------------------------------------------- */
 
 int main(int argc, char **argv)
 {
@@ -114,20 +115,20 @@ int main(int argc, char **argv)
     uint8_t pat[UMK_DIGITS];
     int ok = 1;
 
-    /* "  A - AA": posiciones 0 y 1 apagadas, 'A' identificador, '-'
-     * separador, y el valor AA en las dos posiciones de datos.
-     * 77h = 'A' en la tabla SMBTBL; 40h = sólo el segmento G = "-". */
+    /* "  A - AA": positions 0 and 1 dark, 'A' as the identifier, '-' as the
+     * separator, and the value AA in the two data positions.
+     * 77h = 'A' in the SMBTBL table; 40h = segment G alone = "-". */
     static const uint8_t EXPECTED[UMK_DIGITS] = { 0x00, 0x00, 0x77, 0x40, 0x77, 0x77 };
 
-    printf("=== Criterio 2: monitor real, teclado real, display real ===\n\n");
+    printf("=== Criterion 2: real monitor, real keyboard, real display ===\n\n");
 
     umk_init(&m, UMK_REV2);
-    if (!load_rom(&m, rom)) { fprintf(stderr, "no se pudo cargar el ПЗУ\n"); return 2; }
+    if (!load_rom(&m, rom)) { fprintf(stderr, "could not load the ROM\n"); return 2; }
 
     /* СБ */
     umk_reset(&m);
     umk_run_cycles(&m, 400000u);
-    show_display(&m, "tras СБ");
+    show_display(&m, "after СБ");
 
     /* П 0800 _ 3E _ AA _ C3 _ 00 _ 08 _ ВП */
     press(&m, KEY_P);
@@ -141,18 +142,18 @@ int main(int argc, char **argv)
     press_hex(&m, "00"); press(&m, KEY_SPACE);
     press_hex(&m, "08"); press(&m, KEY_SPACE);
     press(&m, KEY_VP);
-    show_display(&m, "tras la carga");
+    show_display(&m, "after loading");
 
-    printf("\n  memoria 0800..0804: %02X %02X %02X %02X %02X\n",
+    printf("\n  memory 0800..0804: %02X %02X %02X %02X %02X\n",
            umk_peek(&m, 0x0800), umk_peek(&m, 0x0801), umk_peek(&m, 0x0802),
            umk_peek(&m, 0x0803), umk_peek(&m, 0x0804));
     if (umk_peek(&m, 0x0800) != 0x3E || umk_peek(&m, 0x0801) != 0xAA ||
         umk_peek(&m, 0x0802) != 0xC3 || umk_peek(&m, 0x0803) != 0x00 ||
         umk_peek(&m, 0x0804) != 0x08) {
-        printf("  FALLO: el programa no quedó bien cargado\n");
+        printf("  FAIL: the program was not loaded correctly\n");
         ok = 0;
     } else {
-        printf("  OK: MVI A,0AAH / JMP 0800H cargado por teclado\n");
+        printf("  OK: MVI A,0AAH / JMP 0800H entered from the keyboard\n");
     }
 
     /* СТ 0800 ВП */
@@ -160,20 +161,20 @@ int main(int argc, char **argv)
     press_hex(&m, "0800");
     press(&m, KEY_VP);
 
-    /* Correr el programa de usuario un rato. */
+    /* Let the user program run for a while. */
     umk_run_cycles(&m, 500000u);
-    printf("\n  PC del usuario tras arrancar: %04X (A=%02X)\n", m.cpu.pc, m.cpu.a);
+    printf("\n  user PC after start: %04X (A=%02X)\n", m.cpu.pc, m.cpu.a);
     if (m.cpu.pc < 0x0800u || m.cpu.pc > 0x0805u) {
-        printf("  FALLO: no se transfirió el control a 0800H\n");
+        printf("  FAIL: control was not transferred to 0800H\n");
         ok = 0;
     } else {
-        printf("  OK: el control está en el programa de usuario\n");
+        printf("  OK: control is in the user program\n");
     }
 
     /* ПР */
     umk_interrupt(&m);
     umk_run_cycles(&m, 400000u);
-    show_display(&m, "tras ПР");
+    show_display(&m, "after ПР");
 
     /* РГ A */
     press(&m, KEY_RG);
@@ -183,17 +184,17 @@ int main(int argc, char **argv)
     show_display(&m, "РГ A");
 
     umk_display_pattern(&m, 25u, pat);
-    printf("\n  esperado             ");
+    printf("\n  expected              ");
     { unsigned i; for (i = 0; i < UMK_DIGITS; i++) printf(" %02X", EXPECTED[i]); }
     printf("   (\"  A - AA\")\n");
 
     if (memcmp(pat, EXPECTED, sizeof EXPECTED) != 0) {
-        printf("\nFALLO: el display no muestra \"A - AA\"\n");
+        printf("\nFAIL: the display does not show \"A - AA\"\n");
         ok = 0;
     } else {
-        printf("\nOK: el display muestra \"A - AA\"\n");
+        printf("\nOK: the display shows \"A - AA\"\n");
     }
 
-    printf("\n===== %s =====\n", ok ? "CRITERIO 2 CUMPLIDO" : "CRITERIO 2 NO CUMPLIDO");
+    printf("\n===== %s =====\n", ok ? "CRITERION 2 MET" : "CRITERION 2 NOT MET");
     return ok ? 0 : 1;
 }

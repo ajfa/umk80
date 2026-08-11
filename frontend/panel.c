@@ -1,10 +1,10 @@
-/* panel.c — véase panel.h. */
+/* panel.c — see panel.h. */
 
 #include "panel.h"
 #include "font5x7.h"
 
-/* --- paleta ---------------------------------------------------------------
- * Medida sobre docs/ref/umk-80.jpg y docs/ref/umk-80-hello-world.jpg. */
+/* --- palette --------------------------------------------------------------
+ * Measured from docs/ref/umk-80.jpg and docs/ref/umk-80-hello-world.jpg. */
 #define C_PANEL      0xB9B2A5u
 #define C_PANEL_HI   0xCAC4B7u
 #define C_PANEL_LO   0x9A9488u
@@ -18,9 +18,9 @@
 #define C_BEZEL_HI   0xD2D0C9u
 #define C_BEZEL_LO   0x807E79u
 #define C_WINDOW     0x360F0Au
-/* En el equipo real los segmentos apagados apenas se adivinan tras el filtro
- * ahumado; si se dibujan demasiado vivos, seis «8» fantasma compiten con lo
- * que de verdad está encendido. */
+/* On the real machine the unlit segments are barely visible behind the
+ * smoked filter; drawn too brightly, six ghost «8»s compete with whatever is
+ * actually lit. */
 #define C_SEG_OFF    0x2B0C08u
 #define C_LED_OFF    0x431310u
 #define C_LED_RIM    0x2A1512u
@@ -36,7 +36,7 @@ static uint32_t mix(uint32_t a, uint32_t b, unsigned t /* 0..255 */)
     return (r << 16) | (g << 8) | bl;
 }
 
-/* --- primitivas ------------------------------------------------------------ */
+/* --- primitives ------------------------------------------------------------ */
 
 static void px_set(fb_t *fb, int x, int y, uint32_t c)
 {
@@ -58,8 +58,8 @@ static void fill(fb_t *fb, int x, int y, int w, int h, uint32_t c)
         for (i = x; i < x + w; i++) px_set(fb, i, j, c);
 }
 
-/* Rectángulo con biselado de un píxel: claro arriba/izquierda, oscuro
- * abajo/derecha (o al revés si `sunken`). */
+/* Rectangle with a one-pixel bevel: light top/left, dark bottom/right (or
+ * the other way round if `sunken`). */
 static void plate(fb_t *fb, int x, int y, int w, int h,
                   uint32_t face, uint32_t hi, uint32_t lo, int sunken)
 {
@@ -79,11 +79,11 @@ static void disc(fb_t *fb, int cx, int cy, int r, uint32_t c)
             int d = x * x + y * y;
             if (d <= r * r) px_set(fb, cx + x, cy + y, c);
             else if (d <= (r + 1) * (r + 1))
-                px_blend(fb, cx + x, cy + y, c, 110u);   /* antialias tosco */
+                px_blend(fb, cx + x, cy + y, c, 110u);   /* crude antialiasing */
         }
 }
 
-/* Halo suave, para los LEDs y los segmentos encendidos. */
+/* Soft halo, for the LEDs and the lit segments. */
 static void glow(fb_t *fb, int cx, int cy, int r, uint32_t c, unsigned strength)
 {
     int x, y;
@@ -119,13 +119,12 @@ static void text_c(fb_t *fb, int cx, int y, const char *s, int sc, uint32_t c)
     text(fb, cx - font_width(s, sc) / 2, y, s, sc, c);
 }
 
-/* --- distribución del panel ------------------------------------------------
+/* --- panel layout ---------------------------------------------------------
  *
- * Coordenadas en el espacio lógico de PANEL_W x PANEL_H, siguiendo la
- * disposición del Рис. 2: АДРЕС arriba, ДАННЫЕ debajo, СОСТОЯНИЕ debajo de
- * esa, el display a la izquierda de las dos últimas, СБ y ПР al borde
- * derecho, los dos teclados abajo al centro y РБ/ШГ, КМ/ЦК y ШГ al borde
- * derecho más abajo.
+ * Coordinates in the PANEL_W x PANEL_H logical space, following the layout of
+ * Рис. 2: АДРЕС on top, ДАННЫЕ below it, СОСТОЯНИЕ below that, the display to
+ * the left of the last two, СБ and ПР at the right edge, the two keypads at
+ * the bottom centre, and РБ/ШГ, КМ/ЦК and ШГ further down the right edge.
  */
 #define LED_R        7
 #define ADR_Y        118
@@ -149,14 +148,14 @@ static void text_c(fb_t *fb, int cx, int y, const char *s, int sc, uint32_t c)
 #define SIDE_X 916
 #define SIDE_W 62
 
-/* Las filas de la matriz, de arriba abajo en el panel, son los bits 4, 6, 5
- * y 2 de PORTC; en el núcleo esas filas se indexan 1, 3, 2 y 0. */
+/* The matrix rows, top to bottom on the panel, are PORTC bits 4, 6, 5 and 2;
+ * in the core those rows are indexed 1, 3, 2 and 0. */
 static const int ROW_ORDER[4] = { 1, 3, 2, 0 };
 
 #define W_(k, c, r, X, Y, W, H, L, S) { k, c, r, X, Y, W, H, L, S }
 
 const widget_t PANEL_WIDGETS[] = {
-    /* --- teclas directivas: 2 columnas x 4 filas --------------------------- */
+    /* --- directive keys: 2 columns x 4 rows -------------------------------- */
     W_(W_KEY, 0, 1, DIR_X,                  PAD_Y,                    KEY_W, KEY_H, "П",  NULL),
     W_(W_KEY, 1, 1, DIR_X + KEY_W + KEY_G,  PAD_Y,                    KEY_W, KEY_H, "РГ", NULL),
     W_(W_KEY, 0, 3, DIR_X,                  PAD_Y + (KEY_H + KEY_G),  KEY_W, KEY_H, "СТ", NULL),
@@ -166,9 +165,9 @@ const widget_t PANEL_WIDGETS[] = {
     W_(W_KEY, 0, 0, DIR_X,                  PAD_Y + 3*(KEY_H+KEY_G),  KEY_W, KEY_H, "_",  NULL),
     W_(W_KEY, 1, 0, DIR_X + KEY_W + KEY_G,  PAD_Y + 3*(KEY_H+KEY_G),  KEY_W, KEY_H, "ВП", NULL),
 
-    /* --- teclado hexadecimal: 4 columnas x 4 filas -------------------------
-     * Los segundos rótulos son los identificadores de registro de la
-     * directiva РГ, y coinciden uno a uno con la tabla TBLRG del monitor. */
+    /* --- hexadecimal keypad: 4 columns x 4 rows ----------------------------
+     * The second legends are the register identifiers of the РГ directive,
+     * and they match the monitor's TBLRG table one for one. */
     W_(W_KEY, 2, 1, HEX_X,                    PAD_Y,                   KEY_W, KEY_H, "0", NULL),
     W_(W_KEY, 3, 1, HEX_X + (KEY_W+KEY_G),    PAD_Y,                   KEY_W, KEY_H, "1", NULL),
     W_(W_KEY, 4, 1, HEX_X + 2*(KEY_W+KEY_G),  PAD_Y,                   KEY_W, KEY_H, "2", NULL),
@@ -189,7 +188,7 @@ const widget_t PANEL_WIDGETS[] = {
     W_(W_KEY, 4, 0, HEX_X + 2*(KEY_W+KEY_G),  PAD_Y + 3*(KEY_H+KEY_G), KEY_W, KEY_H, "E", "E"),
     W_(W_KEY, 5, 0, HEX_X + 3*(KEY_W+KEY_G),  PAD_Y + 3*(KEY_H+KEY_G), KEY_W, KEY_H, "F", "F"),
 
-    /* --- borde derecho: pulsadores y conmutadores -------------------------- */
+    /* --- right edge: buttons and switches ---------------------------------- */
     W_(W_BTN_SB,   -1, -1, SIDE_X, 150, SIDE_W, 44, "СБ",  NULL),
     W_(W_BTN_PR,   -1, -1, SIDE_X, 202, SIDE_W, 44, "ПР",  NULL),
     W_(W_SW_RBSHG, -1, -1, SIDE_X, 330, SIDE_W, 52, "РБ",  "ШГ"),
@@ -211,20 +210,20 @@ int panel_hit(int x, int y)
     return -1;
 }
 
-/* --- indicadores de siete segmentos ---------------------------------------
+/* --- seven-segment displays -----------------------------------------------
  *
- * Seis dígitos agrupados 4 + 2, con un hueco mayor entre el cuarto y el
- * quinto: el campo АДРЕС y el campo ДАННЫЕ. En el equipo real ese hueco se
- * ve a simple vista (docs/ref/umk-80-hello-world.jpg, donde «HELLO» sale
- * como «HELL O»).
+ * Six digits grouped 4 + 2, with a wider gap between the fourth and the
+ * fifth: the АДРЕС field and the ДАННЫЕ field. On the real machine that gap
+ * is plainly visible (docs/ref/umk-80-hello-world.jpg, where «HELLO» comes
+ * out as «HELL O»).
  */
 #define DIG_W   28
 #define DIG_H   48
 #define DIG_GAP  6
 #define DIG_SPLIT 18
-#define SLANT     4      /* inclinación tipo АЛС, en píxeles sobre la altura */
+#define SLANT     4      /* АЛС-style slant, in pixels over the height */
 
-/* Rectángulo del segmento en coordenadas del dígito: x, y, ancho, alto. */
+/* Segment rectangle in digit coordinates: x, y, width, height. */
 static const signed char SEG_BOX[7][4] = {
     {  4,  0, 20,  5 },   /* A  superior       */
     { 23,  3,  5, 21 },   /* B  sup. derecho   */
@@ -239,10 +238,10 @@ static void draw_digit(fb_t *fb, int ox, int oy, const uint8_t inten[UMK_SEGMENT
 {
     int s, i, j;
     for (s = 0; s < 7; s++) {
-        /* El brillo absoluto de un display multiplexado a seis dígitos no
-         * pasa de 255/6; se reescala para que la pantalla se vea como en el
-         * equipo real, conservando las diferencias relativas (que es donde
-         * se manifiesta el fantasmeo). */
+        /* The absolute brightness of a six-digit multiplexed display never
+         * exceeds 255/6; it is rescaled so the screen looks like the real
+         * machine while preserving the relative differences, which is where
+         * ghosting shows up. */
         unsigned v = inten[s] * 6u;
         uint32_t c;
         if (v > 255u) v = 255u;
@@ -260,7 +259,7 @@ static void draw_digit(fb_t *fb, int ox, int oy, const uint8_t inten[UMK_SEGMENT
             glow(fb, cx, cy, 12, 0xFF5040u, v / 5u);
         }
     }
-    /* punto decimal: bit 7 */
+    /* decimal point: bit 7 */
     {
         unsigned v = inten[7] * 6u;
         if (v > 255u) v = 255u;
@@ -275,7 +274,7 @@ static void draw_display(fb_t *fb, const umk_machine_t *m)
 
     umk_display_intensity(m, inten);
 
-    /* bisel cromado y ventana ahumada */
+    /* chrome bezel and smoked window */
     plate(fb, DISP_X - 6, DISP_Y - 6, DISP_W + 12, DISP_H + 12,
           C_BEZEL, C_BEZEL_HI, C_BEZEL_LO, 0);
     plate(fb, DISP_X, DISP_Y, DISP_W, DISP_H, C_WINDOW, C_BEZEL_LO, C_BEZEL_HI, 1);
@@ -284,11 +283,11 @@ static void draw_display(fb_t *fb, const umk_machine_t *m)
     for (i = 0; i < (int)UMK_DIGITS; i++) {
         draw_digit(fb, x, DISP_Y + 24, inten[i]);
         x += DIG_W + DIG_GAP;
-        if (i == 3) x += DIG_SPLIT;   /* separación АДРЕС | ДАННЫЕ */
+        if (i == 3) x += DIG_SPLIT;   /* АДРЕС | ДАННЫЕ separation */
     }
 }
 
-/* --- filas de LEDs --------------------------------------------------------- */
+/* --- LED rows --------------------------------------------------------- */
 
 static void draw_led(fb_t *fb, int cx, int cy, int on)
 {
@@ -303,10 +302,10 @@ static void draw_led(fb_t *fb, int cx, int cy, int on)
     }
 }
 
-/* Fila de `n` LEDs desde la derecha (bit 0 el de más a la derecha), agrupados
- * de cuatro en cuatro como en el equipo real. El paso se pasa como parámetro
- * porque la fila СОСТОЯНИЕ lleva rótulos largos (STACK, HLTA, MEMR) y
- * necesita más sitio que las de АДРЕС y ДАННЫЕ. */
+/* A row of `n` LEDs laid out from the right (bit 0 rightmost), grouped in
+ * fours as on the real machine. The pitch is a parameter because the
+ * СОСТОЯНИЕ row carries long legends (STACK, HLTA, MEMR) and needs more room
+ * than the АДРЕС and ДАННЫЕ rows. */
 static void draw_led_row(fb_t *fb, int right_x, int y, unsigned n,
                          uint32_t value, const char *const *labels,
                          int pitch, int group)
@@ -324,14 +323,14 @@ static const char *const LBL_ADDR[16] = {
     "0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"
 };
 static const char *const LBL_DATA[8] = { "0","1","2","3","4","5","6","7" };
-/* Rótulos de la palabra de estado, de bit 0 a bit 7. En el panel se leen de
- * izquierda a derecha como MEMR INP M1 OUT HLTA STACK WO INTA, o sea del
- * bit 7 al bit 0. */
+/* Status-word legends, from bit 0 to bit 7. On the panel they read left to
+ * right as MEMR INP M1 OUT HLTA STACK WO INTA, i.e. from bit 7 down to
+ * bit 0. */
 static const char *const LBL_STAT[8] = {
     "INTA","WO","STACK","HLTA","OUT","M1","INP","MEMR"
 };
 
-/* --- teclas y conmutadores -------------------------------------------------- */
+/* --- keys and switches -------------------------------------------------- */
 
 static void draw_key(fb_t *fb, const widget_t *w, int pressed, int latched)
 {
@@ -342,7 +341,7 @@ static void draw_key(fb_t *fb, const widget_t *w, int pressed, int latched)
     plate(fb, w->x, y, w->w, h, pressed ? C_KEY_LO : C_KEY,
           C_KEY_HI, C_KEY_LO, pressed);
 
-    if (latched) {   /* conmutador enclavado: testigo claro en el borde */
+    if (latched) {   /* latched switch: a light tell-tale along the edge */
         fill(fb, w->x + 3, y + 3, w->w - 6, 3, 0xC8B060u);
     }
 
@@ -354,7 +353,7 @@ static void draw_key(fb_t *fb, const widget_t *w, int pressed, int latched)
     }
 }
 
-/* --- adornos del panel ------------------------------------------------------ */
+/* --- panel decoration ------------------------------------------------------ */
 
 static void draw_vents(fb_t *fb)
 {
@@ -384,9 +383,8 @@ static void draw_logo(fb_t *fb)
     text(fb, 56, 350, "КОМПЛЕКТ", 1, C_INK_SOFT);
 }
 
-/* Los tres LEDs de alimentación son indicadores de AVERÍA: encendido
- * significa que esa tensión FALTA (ПС §4.3 «устройство индикации аварии»;
- * ver DESCONOCIDOS.md §8). */
+/* The three supply LEDs are FAULT indicators: lit means that rail is MISSING
+ * (ПС §4.3 «устройство индикации аварии»; see UNKNOWNS.md §8). */
 static void draw_power(fb_t *fb, const umk_machine_t *m)
 {
     static const char *const L[3] = { "+5V", "-5V", "+12V" };
@@ -403,14 +401,14 @@ static void draw_power(fb_t *fb, const umk_machine_t *m)
     text_c(fb, 76, 535, "~", 2, C_KEY_TXT);
 }
 
-/* --- panel completo --------------------------------------------------------- */
+/* --- the whole panel --------------------------------------------------------- */
 
 void panel_draw(fb_t *fb, const umk_machine_t *m, const unsigned char *held)
 {
     int i;
 
     fill(fb, 0, 0, fb->w, fb->h, C_PANEL);
-    /* Un degradado muy suave para que no parezca cartón. */
+    /* A very gentle gradient so it does not look like cardboard. */
     for (i = 0; i < fb->h; i++) {
         unsigned t = (unsigned)(i * 40 / fb->h);
         int x;
@@ -423,7 +421,7 @@ void panel_draw(fb_t *fb, const umk_machine_t *m, const unsigned char *held)
     draw_logo(fb);
     draw_power(fb, m);
 
-    /* filas de LEDs con sus títulos */
+    /* LED rows with their headings */
     text_c(fb, 718, ADR_Y - 28, "АДРЕС", 2, C_INK);
     draw_led_row(fb, 900, ADR_Y, 16, m->panel.address, LBL_ADDR, 22, 12);
 
@@ -446,7 +444,7 @@ void panel_draw(fb_t *fb, const umk_machine_t *m, const unsigned char *held)
         draw_key(fb, w, held && held[i], latched);
     }
 
-    /* Nota discreta: el modo paso a paso está activo. */
+    /* Discreet note: single-step mode is engaged. */
     if (umk_get_switch(m, UMK_SW_STEP)) {
         const char *s = umk_get_switch(m, UMK_SW_CYCLE)
                       ? "ПОШАГОВЫЙ РЕЖИМ - ЦИКЛ" : "ПОШАГОВЫЙ РЕЖИМ - КОМАНДА";
@@ -454,6 +452,6 @@ void panel_draw(fb_t *fb, const umk_machine_t *m, const unsigned char *held)
     }
 }
 
-/* Índices de los controles auxiliares en ROW_ORDER, referenciados aquí para
- * que el compilador no avise de variable sin usar cuando cambie el diseño. */
+/* ROW_ORDER is referenced here so the compiler does not warn about an unused
+ * variable when the layout changes. */
 const int *panel_row_order(void) { return ROW_ORDER; }

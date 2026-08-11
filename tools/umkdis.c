@@ -1,15 +1,15 @@
-/* umkdis.c — desensamblador 8080 (entregable 4 del encargo).
+/* umkdis.c — 8080 disassembler.
  *
- * Uso:  umkdis <fichero.bin> [--org N] [--start N] [--end N] [--asm]
+ * Usage:  umkdis <file.bin> [--org N] [--start N] [--end N] [--asm]
  *
- *   --org    dirección de carga de la imagen (por omisión 0)
- *   --start  primera dirección a desensamblar
- *   --end    última dirección (inclusive)
- *   --asm    salida reensamblable: sin las columnas de dirección y bytes
+ *   --org    load address of the image (default 0)
+ *   --start  first address to disassemble
+ *   --end    last address (inclusive)
+ *   --asm    reassemblable output: no address and byte columns
  *
- * La decodificación vive en disasm.c, compartida con el depurador de umkcli.
- * Los diez opcodes no documentados se marcan con un asterisco, para que se
- * distingan de un vistazo al leer código ajeno.
+ * The decoding lives in disasm.c, shared with the umkcli debugger. The ten
+ * undocumented opcodes are marked with an asterisk so they stand out at a
+ * glance when reading someone else's code.
  */
 
 #include "disasm.h"
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
         else path = argv[i];
     }
     if (!path) {
-        fprintf(stderr, "uso: %s <fichero.bin> [--org N] [--start N] [--end N] [--asm]\n",
+        fprintf(stderr, "usage: %s <file.bin> [--org N] [--start N] [--end N] [--asm]\n",
                 argv[0]);
         return 2;
     }
@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     if (!have_start) start = org;
     if (!have_end)   end = org + (unsigned long)n - 1;
 
-    if (!asm_only) printf("; %s, %lu bytes, cargado en %04lXH\n\n",
+    if (!asm_only) printf("; %s, %lu bytes, loaded at %04lXH\n\n",
                           path, (unsigned long)n, org);
     else           printf("      ORG   %04lXH\n\n", start);
 
@@ -78,7 +78,7 @@ int main(int argc, char **argv)
                 else printf("   ");
             }
             printf(" %-22s%s\n", txt,
-                   i8080_opcode_undocumented(mem[off]) ? "  ; * no documentado" : "");
+                   i8080_opcode_undocumented(mem[off]) ? "  ; * undocumented" : "");
         }
         pc += len;
     }

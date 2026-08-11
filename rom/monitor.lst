@@ -1,21 +1,21 @@
-# Transcripción del listado del monitor del УМК-80
+# Transcription of the УМК-80 monitor listing
 #
-# Fuente: Р.Р.00004-01 12 01-1 «Учебный микропроцессорный комплект.
+# Source: Р.Р.00004-01 12 01-1 «Учебный микропроцессорный комплект.
 #         Системный монитор. Текст программы», 1986, литера О₁.
-#         Impreso con ISIS-II 8080/8085 MACRO ASSEMBLER V4.0.
-#         Páginas 46–83 de docs/umk_docs.pdf (hojas −4− a −41−).
+#         Printed by the ISIS-II 8080/8085 MACRO ASSEMBLER V4.0.
+#         Pages 46-83 of docs/umk_docs.pdf (sheets −4− to −41−).
 #
-# Formato:  LOC  OBJ | FUENTE
-#   LOC  dirección de 4 dígitos hex, tal como la imprime el listado
-#   OBJ  bytes objeto en hex, tal como los imprime el listado (puede faltar)
-#   |    separador
-#   Las líneas que empiezan por '#' son notas de la transcripción.
+# Format:  LOC  OBJ | SOURCE
+#   LOC  4-digit hex address, exactly as the listing prints it
+#   OBJ  object bytes in hex, exactly as the listing prints them (may be absent)
+#   |    separator
+#   Lines starting with '#' are transcription notes.
 #
-# La columna OBJ es la fuente de verdad del binario; la columna de fuente se
-# reensambla por separado y ambos resultados TIENEN que coincidir byte a byte.
-# Ver PLAN.md §4.
+# The OBJ column is the source of truth for the binary; the source column is
+# reassembled separately and both results MUST agree byte for byte.
+# See PLAN.md §4.
 
-# ===== hoja −4− (MODULE PAGE 3): descripción de puertos =====================
+# ===== sheet −4− (MODULE PAGE 3): port declarations =====================
           | ; 1. ОПИСАНИЕ ПОРТОВ ВВОДА/ВЫВОДА
 0000      |         ORG   0
 00F8      | PORTA   EQU   0F8H          ; ПОРТ АДРЕСА
@@ -40,7 +40,7 @@
 0FEE      | USRSTTB EQU   BASETOS+32    ; АДР.ВЕКТ.ПРЕР. В ОЗУ
 0000 C34000 |        JMP   BOOT
 
-# ===== hoja −5− (MODULE PAGE 4): vectores RST 1..6 =========================
+# ===== sheet −5− (MODULE PAGE 4): RST 1..6 vectors =========================
           | ; ОБРАБОТЧИКИ ПРЕРЫВАНИЙ ПОЛЬЗОВАТЕЛЯ.
           | ; 0-Й И 7-Й УРОВНИ ПРЕРЫВАНИЙ
           | ; ИСПОЛЬЗУЮТСЯ ПРОГРАММОЙ МОНИТОР.
@@ -63,7 +63,7 @@
 0030 2AF80F |       LHLD  USRSTTB+10    ; RST 6
 0033 E9   |         PCHL                ; ОБР. 6 УРОВЕНЯ
 
-# ===== hoja −6− (MODULE PAGE 5): RST 7 e inicialización ====================
+# ===== sheet −6− (MODULE PAGE 5): RST 7 and initialisation ====================
           | ; 3. ИНИЦИАЛИЗАЦИЯ ПРОГРАММЫ МОНИТОР
 0038      |         ORG   38H
           | ; ОБРАБОТКА ПРЕРЫВАНИЯ 7-ГО УРОВНЯ
@@ -89,11 +89,11 @@
           | ; ИСХОДНОЕ ПРОГРАММИРОВАНИЕ БИС
 0053 3E89 |         MVI   A,NOT CNTRWRD
 
-# ===== hoja −7− (MODULE PAGE 6) ============================================
+# ===== sheet −7− (MODULE PAGE 6) ============================================
 0055 D3FB |         OUT   CNTRRG
 0057 CDC002 |       CALL  ERSIND        ; ГАШЕНИЕ ИНДИКАЦ.
 
-# ===== hoja −8− (MODULE PAGE 7): START =====================================
+# ===== sheet −8− (MODULE PAGE 7): START =====================================
           | ; 4. СТАРТ ПРОГРАММЫ МОНИТОР.
           | START:
           | ; ИНИЦИАЛ-Я БУФЕРА ВЫВОДА И ВЫВОД СИМВОЛА
@@ -119,7 +119,7 @@
           | ; ПРИЕМ КЛЮЧЕВОГО СИМВОЛА
 0073 CDCD02 |       CALL  CI
 
-# ===== hoja −9− (MODULE PAGE 8) ============================================
+# ===== sheet −9− (MODULE PAGE 8) ============================================
 0076 CDC002 |       CALL  ERSIND
           | ; КОНТРОЛЬ
 0079 FE06 |         CPI   6
@@ -138,7 +138,7 @@
           | ; ПЕРЕДАЧА УПРАВЛЕНИЯ
 008A E9   |         PCHL
 
-# ===== hoja −10− (MODULE PAGE 9): directiva РГ =============================
+# ===== sheet −10− (MODULE PAGE 9): the РГ directive =============================
           | ; 5. РЕАЛИЗАЦИЯ ДИРЕКТИВ ПРОГРАММЫ МОНИТОР
           | REPLRG:
           | ; 5.1. МОДИФИКАЦИЯ СОДЕРЖИМОГО РЕГИСТРОВ
@@ -164,7 +164,7 @@
 00A9 19   |         DAD   D
           | ; <C> - КОД ИДЕНТИФИКАТОРА
 
-# ===== hoja −11− (MODULE PAGE 10) ==========================================
+# ===== sheet −11− (MODULE PAGE 10) ==========================================
 00AA 0605 |         MVI   B,5
           | IDTOUT:
 00AC 7E   |         MOV   A,M
@@ -190,7 +190,7 @@
 00C9 6F   |         MOV   L,A
 00CA 4E   |         MOV   C,M           ; ТЕК.ЗНАЧ.РЕГ.
 
-# ===== hoja −12− (MODULE PAGE 11) ==========================================
+# ===== sheet −12− (MODULE PAGE 11) ==========================================
 00CB E5   |         PUSH  H
 00CC CD8B02 |       CALL  COBYTE        ; ПЕЧАТЬ БАЙТА
 00CF CD6A02 |       CALL  PCHK          ; ЕСЛИ РАЗДЕЛ.
@@ -215,7 +215,7 @@
           | COMEMLP:
           | ; ПЕЧАТЬ СОДЕРЖ. Я.П.
 
-# ===== hoja −13− (MODULE PAGE 12) ==========================================
+# ===== sheet −13− (MODULE PAGE 12) ==========================================
 00F0 4E   |         MOV   C,M
 00F1 E5   |         PUSH  H
 00F2 CD8B02 |       CALL  COBYTE
@@ -242,7 +242,7 @@
 0112 CDA302 |       CALL  COADR
 0115 E1   |         POP   H
 
-# ===== hoja −14− (MODULE PAGE 13): directiva СТ ============================
+# ===== sheet −14− (MODULE PAGE 13): the СТ directive ============================
 0116 C3F000 |       JMP   COMEMLP
           | ; 5.3. ВЫПОЛНЕНИЕ ПРОГРАММЫ ПОЛЬЗОВАТЕЛЯ
           | GOTO:
@@ -267,7 +267,7 @@
 0139 CD3902 |       CALL  PARAM         ; ПРИЕМ АДРЕСА
 013C D1   |         POP   D
 
-# ===== hoja −15− (MODULE PAGE 14) ==========================================
+# ===== sheet −15− (MODULE PAGE 14) ==========================================
 013D E5   |         PUSH  H
 013E 14   |         INR   D             ; КОЛ-ВО ПАРАМЕТРОВ+1
 013F DA4601 |       JC    G02           ; ПАРАМЕТРЫ ПРИНЯТЫ
@@ -292,7 +292,7 @@
 0156 23   |         INX   H
 0157 15   |         DCR   D
 
-# ===== hoja −16− (MODULE PAGE 15): directivas ЗК y ПМ ======================
+# ===== sheet −16− (MODULE PAGE 15): the ЗК and ПМ directives ======================
 0158 C24C01 |       JNZ   G03           ; 2 ТОЧКА ОСТАНОВА
 015B C9   |         RET
           | ; 5.4. ЗАПОЛНЕНИЕ МАССИВА ОЗУ КОНСТАНТОЙ
@@ -316,7 +316,7 @@
 0179 0E03 |         MVI   C,3           ; ПРИЕМ ПАРАМЕТРОВ
 017B CD1F02 |       CALL  CIADR         ; ПЕРЕМЕЩЕНИЯ
 
-# ===== hoja −17− (MODULE PAGE 16): directiva КС ============================
+# ===== sheet −17− (MODULE PAGE 16): the КС directive ============================
 017E C1   |         POP   B             ; НАЧ.АДР. - КУДА
 017F D1   |         POP   D             ; КОН.АДРЕС ИСТОЧНИКА
 0180 E1   |         POP   H             ; НАЧ.АДРЕС ИСТОЧНИКА
@@ -341,7 +341,7 @@
 019A CD3402 |       CALL  COMPA1
 019D DA7602 |       JC    ERROR
 
-# ===== hoja −18− (MODULE PAGE 17) ==========================================
+# ===== sheet −18− (MODULE PAGE 17) ==========================================
 01A0 0E00 |         MVI   C,0           ; ИСХОДНОЕ ЗНАЧ. КС
           | CSUMLP:
 01A2 79   |         MOV   A,C
@@ -352,7 +352,7 @@
 01AB CD8B02 |       CALL  COBYTE        ; ВЫВОД ЗНАЧ. КС
 01AE C3C302 |       JMP   ERSADR        ; ПОГАСИТЬ АД.ИНД.
 
-# ===== hoja −19− (MODULE PAGE 18): RESTART (interrupción ПР) ===============
+# ===== sheet −19− (MODULE PAGE 18): RESTART (the ПР interrupt) ===============
           | ; 6. ОБРАБАТЫВАЮЩИЕ ПРОГРАММЫ.
 03D5      | PLLOC   EQU   PCLOC+1
 03D6      | PHLOC   EQU   PLLOC+1
@@ -378,7 +378,7 @@
 01BC 9A   |         SBB   D
 01BD DA7602 |       JC    ERROR         ; ПРЕРВАН МОНИТОР
 
-# ===== hoja −20− (MODULE PAGE 19) ==========================================
+# ===== sheet −20− (MODULE PAGE 19) ==========================================
 01C0 F1   |         POP   PSW           ; ВОССТ-ТЬ ЗНАЧ.РЕГ.
 01C1 D1   |         POP   D
 01C2 23   |         INX   H             ; АДРЕС СЛЕД. КОМАНДЫ
@@ -404,7 +404,7 @@
 01D7 D1   |         POP   D
 01D8 05   |         DCR   B
 
-# ===== hoja −21− (MODULE PAGE 20) ==========================================
+# ===== sheet −21− (MODULE PAGE 20) ==========================================
 01D9 C2D301 |       JNZ   RST0
 01DC C1   |         POP   B             ; <BC> - PC
 01DD 0B   |         DCX   B             ; PC-1
@@ -431,7 +431,7 @@
           | ; ЗАПОМНИТЬ В ОЗУ HL И PC
 01F5 21DC0F |       LXI   H,BASETOS+LLOC-TOS
 
-# ===== hoja −22− (MODULE PAGE 21) ==========================================
+# ===== sheet −22− (MODULE PAGE 21) ==========================================
 01F8 73   |         MOV   M,E
 01F9 23   |         INX   H
 01FA 72   |         MOV   M,D
@@ -457,7 +457,7 @@
 0212 CA1702 |       JZ    RST3          ; НЕТ ТОЧКИ ПР-Я
 0215 7E   |         MOV   A,M
 
-# ===== hoja −23− (MODULE PAGE 22) ==========================================
+# ===== sheet −23− (MODULE PAGE 22) ==========================================
 0216 02   |         STAX  B
           | RST3:
 0217 23   |         INX   H
@@ -483,7 +483,7 @@
 0231 B4   |         ORA   H
 0232 37   |         STC
 
-# ===== hoja −24− (MODULE PAGE 23) ==========================================
+# ===== sheet −24− (MODULE PAGE 23) ==========================================
 0233 C8   |         RZ
           | COMPA1:
 0234 7B   |         MOV   A,E
@@ -509,7 +509,7 @@
           | ; ПРЕОБРАЗОВАНИЕ ПАРАМЕТРА
 0243 FE30 |         CPI   '0'
 
-# ===== hoja −25− (MODULE PAGE 24) ==========================================
+# ===== sheet −25− (MODULE PAGE 24) ==========================================
 0245 DA7602 |       JC    ERROR         ; НЕ HEX-СИМВОЛ
 0248 E5   |         PUSH  H             ; ЗП. РЕЗУЛЬТАТ
 0249 41   |         MOV   B,C
@@ -535,7 +535,7 @@
 0261 CD6A02 |       CALL  PCHK          ; ПРОБЕЛ, ВК - КОНЕЦ
 0264 E1   |         POP   H
 
-# ===== hoja −26− (MODULE PAGE 25) ==========================================
+# ===== sheet −26− (MODULE PAGE 25) ==========================================
 0265 C24302 |       JNZ   PARCNT
 0268 C1   |         POP   B
 0269 C9   |         RET
@@ -560,7 +560,7 @@
 027F C35A00 |       JMP   START
           | CONVBIN:
 
-# ===== hoja −27− (MODULE PAGE 26) ==========================================
+# ===== sheet −27− (MODULE PAGE 26) ==========================================
           | ; ПРЕОБР-Е МЛ.ТЕТРАДЫ БАЙТА В HEX-ВИД
 0282 E60F |         ANI   0FH
 0284 C690 |         ADI   90H
@@ -586,7 +586,7 @@
 029B 79   |         MOV   A,C
 029C CD8202 |       CALL  CONVBIN
 
-# ===== hoja −28− (MODULE PAGE 27) ==========================================
+# ===== sheet −28− (MODULE PAGE 27) ==========================================
 029F 4F   |         MOV   C,A
 02A0 C33203 |       JMP   CO
           | COADR:
@@ -610,7 +610,7 @@
 02B7 71   |         MOV   M,C
 02B8 C9   |         RET
 
-# ===== hoja −29− (MODULE PAGE 28) ==========================================
+# ===== sheet −29− (MODULE PAGE 28) ==========================================
           | ERSBT:
           | ; ГАШЕНИЕ ИНДИКАЦИИ ДАННЫХ
 02B9 210000 |       LXI   H,ERASE
@@ -634,7 +634,7 @@
           | ; РЕГЕНЕРАЦИЯ
 02CE 21FA0F |       LXI   H,BUFCD       ; АДР.БУФ.ВЫВОДА
 
-# ===== hoja −30− (MODULE PAGE 29): lazo de regeneración ====================
+# ===== sheet −30− (MODULE PAGE 29): display refresh loop ====================
 02D1 0620 |         MVI   B,NMBIND      ; АДР.ИНДИК.
           | CILOOP:
           | ; ЦИКЛ РЕГЕНЕРАЦИИ
@@ -661,7 +661,7 @@
           | CISMB:
           | ; ЗАДЕРЖКА 10 МС, БОРЬБА С ДРЕБЕЗГОМ
 
-# ===== hoja −31− (MODULE PAGE 30) ==========================================
+# ===== sheet −31− (MODULE PAGE 30) ==========================================
 02F0 CD5B03 |       CALL  DELAY
           | ; ВВОД КОДА СИМВОЛА
 02F3 DBFA |         IN    PORTC
@@ -687,7 +687,7 @@
 030D 1F   |         RAR
 030E 1F   |         RAR
 
-# ===== hoja −32− (MODULE PAGE 31) ==========================================
+# ===== sheet −32− (MODULE PAGE 31) ==========================================
 030F 1F   |         RAR                 ; /8
 0310 4F   |         MOV   C,A
           | ; РАЗДЕЛЕНИЕ ФУНКЦ-Х И ЦИФРОВЫХ КЛАВИШ
@@ -714,7 +714,7 @@
 032A C9   |         RET
           | FUNC:
 
-# ===== hoja −33− (MODULE PAGE 32) ==========================================
+# ===== sheet −33− (MODULE PAGE 32) ==========================================
           | ; CODE.FUN
 032B 3D   |         DCR   A
 032C 47   |         MOV   B,A
@@ -740,7 +740,7 @@
 033B D607 |         SUI   7
 033D E60F |         ANI   0FH
 
-# ===== hoja −34− (MODULE PAGE 33) ==========================================
+# ===== sheet −34− (MODULE PAGE 33) ==========================================
 033F 5F   |         MOV   E,A
 0340 1600 |         MVI   D,0
 0342 19   |         DAD   D
@@ -767,7 +767,7 @@
 0357 C25203 |       JNZ   RALLP
 035A C9   |         RET
 
-# ===== hoja −35− (MODULE PAGE 34): DELAY, CTBL, TBLRG ======================
+# ===== sheet −35− (MODULE PAGE 34): DELAY, CTBL, TBLRG ======================
           | DELAY:
           | ; ВРЕМЕННАЯ ЗАДЕРЖКА.
           | ; ВРЕМЯ ОДНОГО ЦИКЛА = 10 МИКРОСЕК.
@@ -793,7 +793,7 @@
 0372 39   |
 0373 76   |
 
-# ===== hoja −36− (MODULE PAGE 35): TBLRG (continuación) ====================
+# ===== sheet −36− (MODULE PAGE 35): TBLRG (continued) ====================
 0374 E70F |         DW    BASETOS+PHLOC-TOS
 0376 73   |         DB    73H,39H,38H   ; PC L
 0377 39   |
@@ -828,7 +828,7 @@
 039B 39   |
 039C D00F |         DW    BASETOS+CLOC-TOS
 
-# ===== hoja −37− (MODULE PAGE 36): fin de TBLRG y SMBTBL ===================
+# ===== sheet −37− (MODULE PAGE 36): end of TBLRG and SMBTBL ===================
 039E 00   |         DB    0,0,5EH       ; D
 039F 00   |
 03A0 5E   |
@@ -862,7 +862,7 @@
           | TOS:
           | ; ТАБЛИЦА ИСХОДНЫХ ЗНАЧЕНИЙ РЕГИСТРОВ И
 
-# ===== hoja −38− (MODULE PAGE 37): tabla TOS ===============================
+# ===== sheet −38− (MODULE PAGE 37): the TOS table ===============================
           | ; ПРОГРАММА ОБРАБОТКИ ПРЕРЫВАНИЙ
 03BD EE   | ELOC:   DB    0EEH
 03BE DD   | DLOC:   DB    0DDH
@@ -889,7 +889,7 @@
           | TLOC:
 03D7 0000 |         DW    0
 
-# ===== hoja −39− (MODULE PAGE 38): fin de la tabla =========================
+# ===== sheet −39− (MODULE PAGE 38): end of the table =========================
 03D9 00   |         DB    0
 03DA 0000 |         DW    0
 03DC 00   |         DB    0
@@ -901,7 +901,7 @@
 03E7 0000 | USRST6: DW    0
           | PCEND:
 
-# ===== hoja −40− (MODULE PAGE 39): ПРОГРАММАТОР УМК ========================
+# ===== sheet −40− (MODULE PAGE 39): ПРОГРАММАТОР УМК ========================
           | ; 2. ПРОГРАММАТОР У М К
 0400      |         ORG   400H
 0400 0E03 |         MVI   C,3           ; ПРИНЯТЬ ПАРАМЕТРЫ
@@ -909,7 +909,7 @@
 0405 C1   |         POP   B
 0406 D1   |         POP   D
 0407 E1   |         POP   H
-0408 3E28 |         MVI   A,40          ; [ver DISCREPANCIAS #1]
+0408 3E28 |         MVI   A,40          ; [see DISCREPANCIES #1]
 040A F5   |         PUSH  PSW
           | PRLP1:
 040B E5   |         PUSH  H
@@ -930,7 +930,7 @@
 041F 3E37 |         MVI   A,37H
 0421 DA2604 |       JC    $+5
 
-# ===== hoja −41− (MODULE PAGE 40): fin del programador =====================
+# ===== sheet −41− (MODULE PAGE 40): end of the programmer =====================
 0424 3E00 |         MVI   A,0
 0426 D3F9 |         OUT   0F9H
 0428 2D   |         DCR   L
@@ -958,18 +958,18 @@
           |         END
 
 # ===========================================================================
-# DISCREPANCIAS DE TRANSCRIPCIÓN
+# TRANSCRIPTION DISCREPANCIES
 # ===========================================================================
 #
-# #1  hoja −40−, LOC 0408, línea 1674.  El escaneo imprime la columna OBJ
-#     como «3F28», pero el enunciado fuente es «MVI A,40» y el opcode de
-#     MVI A es 3Eh, no 3Fh (3Fh es CMC, que no lleva operando). Además, con
-#     3Fh el byte 28h quedaría suelto y todo el resto del programador se
-#     desplazaría, cosa que las direcciones LOC posteriores desmienten:
-#     la siguiente instrucción está en 040A, o sea que 0408 ocupa DOS bytes.
-#     Se transcribe 3E28. Es un defecto del escaneo, no del listado.
+# #1  sheet −40−, LOC 0408, line 1674.  The scan prints the OBJ column as
+#     «3F28», but the source statement is «MVI A,40» and the opcode for
+#     MVI A is 3Eh, not 3Fh (3Fh is CMC, which takes no operand). Moreover,
+#     with 3Fh the byte 28h would be left dangling and the rest of the
+#     programmer would shift, which the following LOC addresses contradict:
+#     the next instruction is at 040A, so 0408 occupies TWO bytes.
+#     Transcribed as 3E28. This is a scanning defect, not a listing error.
 #
-#     (Regla general de esta transcripción: cuando la columna OBJ y la
-#     columna de fuente se contradicen, MANDA la que sea consistente con las
-#     direcciones LOC de alrededor, y la discrepancia se anota aquí.)
+#     (General rule for this transcription: when the OBJ column and the
+#     source column contradict each other, the one consistent with the
+#     surrounding LOC addresses wins, and the discrepancy is recorded here.)
 

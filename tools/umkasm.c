@@ -1,20 +1,20 @@
-/* umkasm.c — ensamblador 8080 (entregable 4 del encargo).
+/* umkasm.c — 8080 assembler.
  *
- * Acepta la sintaxis del ISIS-II 8080/8085 MACRO ASSEMBLER en la medida en
- * que la usa el listado del monitor del УМК-80: etiquetas, ORG, EQU, DB, DW,
- * DS, END, expresiones con + y -, el operador NOT, el contador de posición $,
- * constantes hexadecimales (0F8H), binarias (00100000B), decimales y
- * literales de carácter ('A').
+ * Accepts ISIS-II 8080/8085 MACRO ASSEMBLER syntax to the extent the УМК-80
+ * monitor listing uses it: labels, ORG, EQU, DB, DW, DS, END, expressions
+ * with + and -, the NOT operator, the location counter $, hexadecimal
+ * (0F8H), binary (00100000B) and decimal constants, and character literals
+ * ('A').
  *
- * Uso:  umkasm <fuente.asm> <salida.bin> [--size N] [--listing]
+ * Usage:  umkasm <source.asm> <output.bin> [--size N] [--verify <ref.bin>]
  *
- * Es la segunda vía de PLAN.md §4: reensamblar el texto del listado tiene
- * que dar exactamente la misma imagen que reconstruir la columna OBJ con
- * umkrom. Si las dos no coinciden, hay un error de transcripción.
+ * This is the second path of PLAN.md §4: reassembling the listing's text must
+ * produce exactly the same image as rebuilding the OBJ column with umkrom. If
+ * the two disagree, there is a transcription error.
  *
- * Pasadas: se repiten hasta que la tabla de símbolos deja de cambiar, porque
- * el fuente del monitor tiene EQU con referencia hacia adelante
- * (PLLOC EQU PCLOC+1, con la etiqueta PCLOC definida 900 líneas después).
+ * Passes are repeated until the symbol table stops changing, because the
+ * monitor source contains forward-referencing EQUs (PLLOC EQU PCLOC+1, with
+ * the label PCLOC defined 900 lines further down).
  */
 
 #include <stdio.h>
@@ -49,7 +49,7 @@ static void err(const char *fmt, const char *a)
     errors++;
 }
 
-/* --- tabla de símbolos ------------------------------------------------------ */
+/* --- symbol table ------------------------------------------------------ */
 
 static int sym_find(const char *name)
 {
@@ -59,12 +59,12 @@ static int sym_find(const char *name)
     return -1;
 }
 
-/* Devuelve 1 si el valor cambió respecto a la pasada anterior. */
+/* Returns 1 if the value changed from the previous pass. */
 static int sym_set(const char *name, long value)
 {
     int i = sym_find(name);
     if (i < 0) {
-        if (nsyms >= MAX_SYMS) { err("demasiados símbolos (%s)", name); return 0; }
+        if (nsyms >= MAX_SYMS) { err("too many symbols (%s)", name); return 0; }
         i = nsyms++;
         strncpy(syms[i].name, name, sizeof syms[i].name - 1);
         syms[i].name[sizeof syms[i].name - 1] = '\0';
@@ -76,11 +76,11 @@ static int sym_set(const char *name, long value)
     return 0;
 }
 
-/* --- evaluador de expresiones -----------------------------------------------
+/* --- expression evaluator ---------------------------------------------------
  *
- * Gramática: expr := term { ('+' | '-') term }
- *            term := ['NOT'] factor
- *            factor := número | carácter | símbolo | '$' | '(' expr ')'
+ * Grammar: expr := term { ('+' | '-') term }
+ *          term := ['NOT'] factor
+ *          factor := number | character | symbol | '$' | '(' expr ')'
  */
 
 static const char *ep;
@@ -102,7 +102,7 @@ static long eval_factor(void)
         if (*ep == ')') ep++;
         return v;
     }
-    if (*ep == '\'') {                    /* literal de carácter */
+    if (*ep == '\'') {                    /* character literal */
         long v;
         ep++;
         v = (unsigned char)*ep++;
@@ -182,18 +182,18 @@ static long evaluate(const char *s, int *ok)
     return v;
 }
 
-/* --- tabla de instrucciones -------------------------------------------------- */
+/* --- instruction table -------------------------------------------------- */
 
 typedef enum {
-    K_NONE,      /* sin operandos                                */
+    K_NONE,      /* no operands                                  */
     K_R8D,       /* INR/DCR r      : base + (r<<3)                */
     K_R8S,       /* ALU r          : base + r                     */
     K_MOV,       /* MOV d,s        : 40h + (d<<3) + s             */
     K_MVI,       /* MVI r,imm8     : base + (r<<3), imm           */
     K_LXI,       /* LXI rp,imm16                                  */
     K_RP,        /* INX/DCX/DAD rp : base + (rp<<4)               */
-    K_STK,       /* PUSH/POP rp    : base + (rp<<4), con PSW      */
-    K_AX,        /* STAX/LDAX      : sólo B y D                   */
+    K_STK,       /* PUSH/POP rp    : base + (rp<<4), with PSW     */
+    K_AX,        /* STAX/LDAX      : B and D only                 */
     K_IMM8,      /* ADI, CPI...                                   */
     K_ADDR,      /* JMP, CALL, LDA...                             */
     K_RST,       /* RST n                                         */
@@ -265,7 +265,7 @@ static int regpair(const char *s, int stack)
     return -1;
 }
 
-/* --- emisión ------------------------------------------------------------------ */
+/* --- emission ------------------------------------------------------------------ */
 
 static int emitting;
 
@@ -275,7 +275,7 @@ static void emit(long addr, unsigned char v)
         if (emitting) {
             char b[32];
             sprintf(b, "%04lXH", addr);
-            err("dirección %s fuera de la imagen", b);
+            err("address %s outside the image", b);
         }
         return;
     }
@@ -289,7 +289,7 @@ static void emit_word(long v)
     emit_byte((unsigned char)((v >> 8) & 0xFF));
 }
 
-/* --- análisis de una línea ---------------------------------------------------- */
+/* --- parsing one line ---------------------------------------------------- */
 
 static char *trim(char *s)
 {
@@ -301,7 +301,7 @@ static char *trim(char *s)
     return s;
 }
 
-/* Separa la lista de operandos por comas de primer nivel (fuera de comillas). */
+/* Splits the operand list on top-level commas (outside quotes). */
 static int split_operands(char *s, char *out[], int max)
 {
     int n = 0;
@@ -334,7 +334,7 @@ static void assemble_line(char *raw)
     strncpy(work, raw, sizeof work - 1);
     work[sizeof work - 1] = '\0';
 
-    /* quitar comentario, respetando los literales de carácter */
+    /* strip the comment, respecting character literals */
     {
         int inq = 0;
         char *p;
@@ -346,11 +346,11 @@ static void assemble_line(char *raw)
 
     s = trim(work);
     if (!*s) return;
-    if (*s == '$') return;             /* $EJECT y similares del ISIS-II */
+    if (*s == '$') return;             /* $EJECT and similar ISIS-II directives */
 
     stmt_pc = pc;
 
-    /* etiqueta con dos puntos */
+    /* label with a colon */
     {
         char *colon = strchr(s, ':');
         if (colon) {
@@ -365,23 +365,23 @@ static void assemble_line(char *raw)
         }
     }
 
-    /* mnemónico o nombre de EQU */
+    /* mnemonic, or the name of an EQU */
     mnemonic = s;
     while (*s && !isspace((unsigned char)*s)) s++;
     if (*s) { *s = '\0'; rest = trim(s + 1); } else rest = s;
     for (i = 0; mnemonic[i]; i++) mnemonic[i] = (char)toupper((unsigned char)mnemonic[i]);
 
-    /* NOMBRE EQU expr */
+    /* NAME EQU expr */
     if (rest && strncmp(rest, "EQU", 3) == 0 && (rest[3] == ' ' || rest[3] == '\t')) {
         long v = evaluate(trim(rest + 3), &ok);
         if (ok && sym_set(mnemonic, v)) changed = 1;
-        else if (!ok && emitting) err("EQU con símbolo indefinido: %s", mnemonic);
+        else if (!ok && emitting) err("EQU with undefined symbol: %s", mnemonic);
         return;
     }
 
     nops = split_operands(rest, ops, 8);
 
-    /* directivas */
+    /* directives */
     if (strcmp(mnemonic, "ORG") == 0) {
         long v = nops ? evaluate(ops[0], &ok) : 0;
         if (ok) pc = v;
@@ -396,7 +396,7 @@ static void assemble_line(char *raw)
     if (strcmp(mnemonic, "DB") == 0) {
         for (i = 0; i < nops; i++) {
             long v = evaluate(ops[i], &ok);
-            if (!ok && emitting) err("símbolo indefinido en DB: %s", ops[i]);
+            if (!ok && emitting) err("undefined symbol in DB: %s", ops[i]);
             emit_byte((unsigned char)(v & 0xFF));
         }
         return;
@@ -404,13 +404,13 @@ static void assemble_line(char *raw)
     if (strcmp(mnemonic, "DW") == 0) {
         for (i = 0; i < nops; i++) {
             long v = evaluate(ops[i], &ok);
-            if (!ok && emitting) err("símbolo indefinido en DW: %s", ops[i]);
+            if (!ok && emitting) err("undefined symbol in DW: %s", ops[i]);
             emit_word(v);
         }
         return;
     }
 
-    /* instrucciones */
+    /* instructions */
     for (i = 0; i < MNEM_N; i++) {
         if (strcmp(MNEM[i].name, mnemonic) != 0) continue;
         {
@@ -420,8 +420,8 @@ static void assemble_line(char *raw)
 
             for (r = 0; r < nops; r++) {
                 char *p = ops[r];
-                /* Los nombres de registro se comparan en mayúsculas; las
-                 * expresiones las normaliza el evaluador por su cuenta. */
+                /* Register names are compared in uppercase; expressions are
+                 * normalised by the evaluator itself. */
                 if (strlen(p) <= 3) { int k; for (k = 0; p[k]; k++) p[k] = (char)toupper((unsigned char)p[k]); }
             }
 
@@ -431,60 +431,60 @@ static void assemble_line(char *raw)
                     return;
                 case K_R8D:
                     r = reg8(nops ? ops[0] : NULL);
-                    if (r < 0) { if (emitting) err("registro inválido en %s", mnemonic); r = 0; }
+                    if (r < 0) { if (emitting) err("invalid register in %s", mnemonic); r = 0; }
                     emit_byte((unsigned char)(m->base + (r << 3)));
                     return;
                 case K_R8S:
                     r = reg8(nops ? ops[0] : NULL);
-                    if (r < 0) { if (emitting) err("registro inválido en %s", mnemonic); r = 0; }
+                    if (r < 0) { if (emitting) err("invalid register in %s", mnemonic); r = 0; }
                     emit_byte((unsigned char)(m->base + r));
                     return;
                 case K_MOV:
                     r  = reg8(nops > 0 ? ops[0] : NULL);
                     r2 = reg8(nops > 1 ? ops[1] : NULL);
-                    if (r < 0 || r2 < 0) { if (emitting) err("registro inválido en %s", mnemonic); r = r2 = 0; }
+                    if (r < 0 || r2 < 0) { if (emitting) err("invalid register in %s", mnemonic); r = r2 = 0; }
                     emit_byte((unsigned char)(0x40 + (r << 3) + r2));
                     return;
                 case K_MVI:
                     r = reg8(nops > 0 ? ops[0] : NULL);
-                    if (r < 0) { if (emitting) err("registro inválido en %s", mnemonic); r = 0; }
+                    if (r < 0) { if (emitting) err("invalid register in %s", mnemonic); r = 0; }
                     v = (nops > 1) ? evaluate(ops[1], &ok) : 0;
-                    if (!ok && emitting) err("símbolo indefinido en %s", mnemonic);
+                    if (!ok && emitting) err("undefined symbol in %s", mnemonic);
                     emit_byte((unsigned char)(m->base + (r << 3)));
                     emit_byte((unsigned char)(v & 0xFF));
                     return;
                 case K_LXI:
                     r = regpair(nops > 0 ? ops[0] : NULL, 0);
-                    if (r < 0) { if (emitting) err("par de registros inválido en %s", mnemonic); r = 0; }
+                    if (r < 0) { if (emitting) err("invalid register pair in %s", mnemonic); r = 0; }
                     v = (nops > 1) ? evaluate(ops[1], &ok) : 0;
-                    if (!ok && emitting) err("símbolo indefinido en %s", mnemonic);
+                    if (!ok && emitting) err("undefined symbol in %s", mnemonic);
                     emit_byte((unsigned char)(0x01 + (r << 4)));
                     emit_word(v);
                     return;
                 case K_RP:
                     r = regpair(nops ? ops[0] : NULL, 0);
-                    if (r < 0) { if (emitting) err("par de registros inválido en %s", mnemonic); r = 0; }
+                    if (r < 0) { if (emitting) err("invalid register pair in %s", mnemonic); r = 0; }
                     emit_byte((unsigned char)(m->base + (r << 4)));
                     return;
                 case K_STK:
                     r = regpair(nops ? ops[0] : NULL, 1);
-                    if (r < 0) { if (emitting) err("par de registros inválido en %s", mnemonic); r = 0; }
+                    if (r < 0) { if (emitting) err("invalid register pair in %s", mnemonic); r = 0; }
                     emit_byte((unsigned char)(m->base + (r << 4)));
                     return;
                 case K_AX:
                     r = regpair(nops ? ops[0] : NULL, 0);
-                    if (r != 0 && r != 1) { if (emitting) err("%s admite sólo B o D", mnemonic); r = 0; }
+                    if (r != 0 && r != 1) { if (emitting) err("%s only accepts B or D", mnemonic); r = 0; }
                     emit_byte((unsigned char)(m->base + (r << 4)));
                     return;
                 case K_IMM8:
                     v = nops ? evaluate(ops[0], &ok) : 0;
-                    if (!ok && emitting) err("símbolo indefinido en %s", mnemonic);
+                    if (!ok && emitting) err("undefined symbol in %s", mnemonic);
                     emit_byte(m->base);
                     emit_byte((unsigned char)(v & 0xFF));
                     return;
                 case K_ADDR:
                     v = nops ? evaluate(ops[0], &ok) : 0;
-                    if (!ok && emitting) err("símbolo indefinido en %s", mnemonic);
+                    if (!ok && emitting) err("undefined symbol in %s", mnemonic);
                     emit_byte(m->base);
                     emit_word(v);
                     return;
@@ -494,7 +494,7 @@ static void assemble_line(char *raw)
                     return;
                 case K_PORT:
                     v = nops ? evaluate(ops[0], &ok) : 0;
-                    if (!ok && emitting) err("símbolo indefinido en %s", mnemonic);
+                    if (!ok && emitting) err("undefined symbol in %s", mnemonic);
                     emit_byte(m->base);
                     emit_byte((unsigned char)(v & 0xFF));
                     return;
@@ -502,10 +502,10 @@ static void assemble_line(char *raw)
         }
     }
 
-    if (emitting) err("mnemónico desconocido: %s", mnemonic);
+    if (emitting) err("unknown mnemonic: %s", mnemonic);
 }
 
-/* --- programa principal --------------------------------------------------------- */
+/* --- main program --------------------------------------------------------- */
 
 int main(int argc, char **argv)
 {
@@ -524,7 +524,7 @@ int main(int argc, char **argv)
         else if (!dst) dst = argv[i];
     }
     if (!src || !dst) {
-        fprintf(stderr, "uso: %s <fuente.asm> <salida.bin> [--size N] [--verify <ref.bin>]\n",
+        fprintf(stderr, "usage: %s <source.asm> <output.bin> [--size N] [--verify <ref.bin>]\n",
                 argv[0]);
         return 2;
     }
@@ -536,8 +536,8 @@ int main(int argc, char **argv)
 
     memset(image, 0xFF, sizeof image);
 
-    /* Pasadas hasta que los símbolos se estabilicen: el fuente tiene EQU con
-     * referencia hacia adelante. */
+    /* Repeat passes until the symbols settle: the source has
+     * forward-referencing EQUs. */
     for (pass = 0; pass < 16; pass++) {
         changed = 0;
         emitting = 0;
@@ -546,7 +546,7 @@ int main(int argc, char **argv)
         if (!changed) break;
     }
     if (pass >= 16) {
-        fprintf(stderr, "los símbolos no convergen tras 16 pasadas\n");
+        fprintf(stderr, "symbols do not converge after 16 passes\n");
         return 1;
     }
 
@@ -555,19 +555,19 @@ int main(int argc, char **argv)
     errors = 0;
     for (cur_line = 0; cur_line < nlines; cur_line++) assemble_line(lines[cur_line]);
 
-    printf("%d líneas, %d símbolos, %d pasadas para converger\n",
+    printf("%d lines, %d symbols, %d passes to converge\n",
            nlines, nsyms, pass + 1);
 
-    if (errors) { fprintf(stderr, "%d errores\n", errors); return 1; }
+    if (errors) { fprintf(stderr, "%d errors\n", errors); return 1; }
 
     f = fopen(dst, "wb");
     if (!f) { perror(dst); return 2; }
     fwrite(image, 1, (size_t)image_size, f);
     fclose(f);
-    printf("%s escrito (%ld bytes)\n", dst, image_size);
+    printf("%s written (%ld bytes)\n", dst, image_size);
 
-    /* Segunda vía de PLAN.md §4: lo reensamblado tiene que coincidir byte a
-     * byte con lo reconstruido de la columna OBJ del listado. */
+    /* Second path of PLAN.md §4: the reassembled image must match, byte for
+     * byte, the one rebuilt from the listing's OBJ column. */
     if (verify) {
         static unsigned char ref[IMAGE_MAX];
         size_t n;
@@ -579,23 +579,23 @@ int main(int argc, char **argv)
         fclose(f);
 
         if ((long)n != image_size) {
-            printf("VERIFICACIÓN FALLIDA: %s mide %lu bytes, la imagen %ld\n",
+            printf("VERIFICATION FAILED: %s is %lu bytes, the image is %ld\n",
                    verify, (unsigned long)n, image_size);
             return 1;
         }
         for (k = 0; k < image_size; k++) {
             if (image[k] != ref[k]) {
                 if (diff < 20)
-                    printf("  %04lXH  reensamblado=%02X  columna OBJ=%02X\n",
+                    printf("  %04lXH  reassembled=%02X  OBJ column=%02X\n",
                            k, image[k], ref[k]);
                 diff++;
             }
         }
         if (diff) {
-            printf("VERIFICACIÓN FALLIDA: %ld bytes distintos\n", diff);
+            printf("VERIFICATION FAILED: %ld bytes differ\n", diff);
             return 1;
         }
-        printf("VERIFICACIÓN OK: reensamblado == columna OBJ, %ld bytes idénticos\n",
+        printf("VERIFICATION OK: reassembled == OBJ column, %ld bytes identical\n",
                image_size);
     }
     return 0;

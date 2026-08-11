@@ -1,5 +1,5 @@
-; Fuente del monitor del УМК-80, extraído de rom/monitor.lst.
-; NO EDITAR: se regenera con  umkrom rom/monitor.lst ... --asm
+; УМК-80 monitor source, extracted from rom/monitor.lst.
+; DO NOT EDIT: regenerate with  umkrom rom/monitor.lst ... --asm
 ; Original: Р.Р.00004-01 12 01-1, «Системный монитор. Текст
 ; программы», 1986, литера О1, ISIS-II 8080/8085 MACRO ASSEMBLER.
 
@@ -824,7 +824,7 @@
          POP   B
          POP   D
          POP   H
-         MVI   A,40          ; [ver DISCREPANCIAS #1]
+         MVI   A,40          ; [see DISCREPANCIES #1]
          PUSH  PSW
  PRLP1:
          PUSH  H

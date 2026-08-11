@@ -1,12 +1,13 @@
-# Makefile — construcción sin dependencias más allá de un compilador C11.
+# Makefile — builds with no dependency beyond a C11 compiler.
 #
-#   make            compila todo en build/
-#   make test       compila y pasa las suites rápidas del 8080
-#   make test-exm   pasa además 8080EXM (tarda varios minutos)
+#   make            build everything into build/
+#   make test       build and run the quick acceptance checks
+#   make test-exm   also run 8080EXM (takes several minutes)
+#   make pack       build the portable package for this system
 #   make clean
 #
-# Funciona con GNU make (Linux/macOS/MSYS2) y con mingw32-make en Windows.
-# Existe también un CMakeLists.txt equivalente para quien prefiera CMake.
+# Works with GNU make (Linux/macOS/MSYS2) and with mingw32-make on Windows.
+# An equivalent CMakeLists.txt is provided for anyone who prefers CMake.
 
 CC      ?= gcc
 CSTD    := -std=c11
@@ -32,11 +33,11 @@ CORE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CORE_SRC))
 
 all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE) \
      $(BUILD)/umkrom$(EXE) $(BUILD)/umkasm$(EXE) $(BUILD)/umkdis$(EXE) \
-     $(BUILD)/criterio2$(EXE) $(BUILD)/criterio4$(EXE) \
+     $(BUILD)/criterion2$(EXE) $(BUILD)/criterion4$(EXE) \
      rom/monitor.bin $(BUILD)/umk80$(EXE) $(BUILD)/umkcli$(EXE)
 
-# El frontend hace aritmética de píxeles a mansalva; -Wconversion ahí sólo
-# genera ruido. El núcleo sí se compila con él.
+# The frontend does pixel arithmetic everywhere; -Wconversion there is just
+# noise. The core is compiled with it.
 FEFLAGS := $(CSTD) -Wall -Wextra -Wshadow $(OPT) -Icore/include -Ifrontend
 
 ifeq ($(OS),Windows_NT)
@@ -56,7 +57,7 @@ $(BUILD)/umk80$(EXE): frontend/main.c frontend/panel.c $(PLATFORM_SRC) $(CORE_OB
 run: $(BUILD)/umk80$(EXE) rom/monitor.bin
 	$(BUILD)/umk80$(EXE) --rom rom/monitor.bin
 
-# Un script autónomo por sistema, nunca uno con argumento para elegir.
+# One self-contained script per system, never one with a switch to pick.
 .PHONY: pack
 ifeq ($(OS),Windows_NT)
 pack: all
@@ -90,20 +91,21 @@ $(BUILD)/umkdis$(EXE): tools/umkdis.c $(BUILD)/disasm.o $(BUILD)/core/src/i8080.
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CSTD) $(WARN) $(OPT) -Icore/include -Itools $^ -o $@
 
-# Vía 1: la imagen sale de la columna OBJ del listado. De paso se extrae el
-# fuente, para que las dos vías partan del mismo fichero y no se desincronicen.
+# Path 1: the image comes from the listing's OBJ column. The source column is
+# extracted at the same time, so both paths start from the same file and
+# cannot drift apart.
 rom/monitor.bin rom/monitor.asm: rom/monitor.lst $(BUILD)/umkrom$(EXE)
 	$(BUILD)/umkrom$(EXE) rom/monitor.lst rom/monitor.bin --asm rom/monitor.asm
 
-$(BUILD)/criterio2$(EXE): tests/monitor/criterio2.c $(CORE_OBJ)
+$(BUILD)/criterion2$(EXE): tests/monitor/criterion2.c $(CORE_OBJ)
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CFLAGS) $^ -o $@
 
-$(BUILD)/criterio4$(EXE): tests/step/criterio4.c $(CORE_OBJ)
+$(BUILD)/criterion4$(EXE): tests/step/criterion4.c $(CORE_OBJ)
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CFLAGS) $^ -o $@
 
-# Vía 2: reensamblar el fuente y exigir igualdad byte a byte (PLAN.md §4).
+# Path 2: reassemble the source and require byte-for-byte equality (PLAN.md §4).
 .PHONY: verify-rom
 verify-rom: rom/monitor.asm rom/monitor.bin $(BUILD)/umkasm$(EXE)
 	$(BUILD)/umkasm$(EXE) rom/monitor.asm $(BUILD)/monitor_asm.bin --verify rom/monitor.bin
@@ -119,9 +121,9 @@ $(BUILD)/umkcli$(EXE): cli/umkcli.c $(BUILD)/disasm.o $(CORE_OBJ)
 test: all verify-rom
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites --quick
 	$(BUILD)/ghosting$(EXE)
-	$(BUILD)/criterio2$(EXE) rom/monitor.bin
-	$(BUILD)/criterio4$(EXE)
-	$(BUILD)/umkcli$(EXE) --rom rom/monitor.bin --script tests/cli/humo.txt
+	$(BUILD)/criterion2$(EXE) rom/monitor.bin
+	$(BUILD)/criterion4$(EXE)
+	$(BUILD)/umkcli$(EXE) --rom rom/monitor.bin --script tests/cli/smoke.txt
 
 test-exm: $(BUILD)/cpu_suite$(EXE)
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites

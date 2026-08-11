@@ -1,15 +1,16 @@
-/* umkrom.c — reconstruye la imagen de ПЗУ a partir de la columna OBJ del
- * listado transcrito (rom/monitor.lst).
+/* umkrom.c — rebuilds the ROM image from the OBJ column of the transcribed
+ * listing (rom/monitor.lst).
  *
- * Es la primera de las dos vías de PLAN.md §4. La segunda es reensamblar la
- * columna de fuente con umkasm; las dos imágenes tienen que coincidir byte a
- * byte.
+ * This is the first of the two paths of PLAN.md §4. The second is to
+ * reassemble the source column with umkasm; the two images must match byte
+ * for byte.
  *
- * Uso:  umkrom rom/monitor.lst rom/monitor.bin
+ * Usage:  umkrom rom/monitor.lst rom/monitor.bin
  *
- * Además del binario imprime un informe de cobertura: qué tramos quedan sin
- * cubrir y si alguna dirección recibe dos valores distintos. Un hueco dentro
- * del cuerpo del monitor es señal de que falta transcribir algo.
+ * Besides the binary it prints a coverage report: which ranges are left
+ * uncovered, and whether any address receives two different values. A gap
+ * inside the body of the monitor means something is missing from the
+ * transcription.
  */
 
 #include <stdio.h>
@@ -43,12 +44,12 @@ static int is_hex_string(const char *s, size_t n)
 static void place(unsigned addr, unsigned char val, unsigned lineno)
 {
     if (addr >= ROM_SIZE) {
-        fprintf(stderr, "línea %u: dirección %04X fuera del ПЗУ\n", lineno, addr);
+        fprintf(stderr, "line %u: address %04X outside the ROM\n", lineno, addr);
         errors++;
         return;
     }
     if (covered[addr] && image[addr] != val) {
-        fprintf(stderr, "línea %u: %04X recibe %02X pero ya valía %02X\n",
+        fprintf(stderr, "line %u: %04X gets %02X but already held %02X\n",
                 lineno, addr, val, image[addr]);
         errors++;
         return;
@@ -74,12 +75,12 @@ int main(int argc, char **argv)
         if (strcmp(argv[a], "--asm") == 0 && a + 1 < argc) asmpath = argv[++a];
 
     if (argc < 3) {
-        fprintf(stderr, "uso: %s <monitor.lst> <monitor.bin> [--asm <monitor.asm>]\n",
+        fprintf(stderr, "usage: %s <monitor.lst> <monitor.bin> [--asm <monitor.asm>]\n",
                 argv[0]);
         return 2;
     }
 
-    memset(image, 0xFF, sizeof image);   /* EPROM virgen */
+    memset(image, 0xFF, sizeof image);   /* blank EPROM */
 
     in = fopen(argv[1], "rb");
     if (!in) { perror(argv[1]); return 2; }
@@ -87,8 +88,8 @@ int main(int argc, char **argv)
     if (asmpath) {
         asmf = fopen(asmpath, "wb");
         if (!asmf) { perror(asmpath); return 2; }
-        fprintf(asmf, "; Fuente del monitor del УМК-80, extraído de rom/monitor.lst.\n"
-                      "; NO EDITAR: se regenera con  umkrom rom/monitor.lst ... --asm\n"
+        fprintf(asmf, "; УМК-80 monitor source, extracted from rom/monitor.lst.\n"
+                      "; DO NOT EDIT: regenerate with  umkrom rom/monitor.lst ... --asm\n"
                       "; Original: Р.Р.00004-01 12 01-1, «Системный монитор. Текст\n"
                       "; программы», 1986, литера О1, ISIS-II 8080/8085 MACRO ASSEMBLER.\n\n");
     }
@@ -104,7 +105,7 @@ int main(int argc, char **argv)
         bar = strchr(line, '|');
         if (!bar) continue;
 
-        if (asmf) {                       /* la columna de fuente, tal cual */
+        if (asmf) {                       /* the source column, verbatim */
             char *srctext = bar + 1;
             char *e = srctext + strlen(srctext);
             while (e > srctext && (e[-1] == '\n' || e[-1] == '\r')) e--;
@@ -112,7 +113,7 @@ int main(int argc, char **argv)
             fprintf(asmf, "%s\n", srctext);
         }
 
-        *bar = '\0';                      /* nos quedamos con LOC y OBJ */
+        *bar = '\0';                      /* keep only LOC and OBJ */
 
         p = line;
         while (*p && isspace((unsigned char)*p)) p++;
@@ -123,14 +124,14 @@ int main(int argc, char **argv)
         if (*p) *p++ = '\0';
 
         if (strlen(loc_tok) != 4 || !is_hex_string(loc_tok, 4)) {
-            fprintf(stderr, "línea %u: LOC ilegible «%s»\n", lineno, loc_tok);
+            fprintf(stderr, "line %u: unreadable LOC \"%s\"\n", lineno, loc_tok);
             errors++;
             continue;
         }
         addr = (unsigned)strtoul(loc_tok, NULL, 16);
 
         while (*p && isspace((unsigned char)*p)) p++;
-        if (!*p) continue;                /* LOC sin OBJ: ORG, EQU, etiqueta */
+        if (!*p) continue;                /* LOC with no OBJ: ORG, EQU, label */
 
         obj_tok = p;
         while (*p && !isspace((unsigned char)*p)) p++;
@@ -138,7 +139,7 @@ int main(int argc, char **argv)
 
         objlen = strlen(obj_tok);
         if (!is_hex_string(obj_tok, objlen) || (objlen % 2u) != 0u) {
-            fprintf(stderr, "línea %u: OBJ ilegible «%s»\n", lineno, obj_tok);
+            fprintf(stderr, "line %u: unreadable OBJ \"%s\"\n", lineno, obj_tok);
             errors++;
             continue;
         }
@@ -151,11 +152,11 @@ int main(int argc, char **argv)
         }
     }
     fclose(in);
-    if (asmf) { fclose(asmf); printf("%s escrito\n", asmpath); }
+    if (asmf) { fclose(asmf); printf("%s written\n", asmpath); }
 
-    /* Informe de cobertura */
-    printf("bytes colocados: %u\n", total);
-    printf("tramos sin cubrir dentro de 0000-07FF:\n");
+    /* Coverage report */
+    printf("bytes placed: %u\n", total);
+    printf("uncovered ranges within 0000-07FF:\n");
     in_gap = 0; run_start = 0;
     for (i = 0; i <= ROM_SIZE; i++) {
         int gap = (i < ROM_SIZE) && !covered[i];
@@ -171,8 +172,8 @@ int main(int argc, char **argv)
     if (fwrite(image, 1, ROM_SIZE, out) != ROM_SIZE) { perror("write"); return 2; }
     fclose(out);
 
-    printf("%s escrito (%u bytes)\n", argv[2], ROM_SIZE);
-    if (errors) printf("HAY %d PROBLEMAS DE TRANSCRIPCIÓN\n", errors);
+    printf("%s written (%u bytes)\n", argv[2], ROM_SIZE);
+    if (errors) printf("%d TRANSCRIPTION PROBLEMS FOUND\n", errors);
     return errors ? 1 : 0;
 }
 

@@ -1,32 +1,31 @@
-/* i8080.c — intérprete del Intel 8080 / КР580ВМ80А.
+/* i8080.c — Intel 8080 / КР580ВМ80А interpreter.
  *
- * Objetivos, por este orden:
- *   1. Exactitud de banderas, incluidas AC y las peculiaridades del 8080
- *      frente al Z80 (ANA fija AC según (a|b)&8; los bits 3 y 5 del PSW
- *      valen siempre 0 y el bit 1 siempre 1).
- *   2. Exactitud de ciclos T por instrucción, incluido el camino tomado y
- *      no tomado de saltos, llamadas y retornos condicionales.
- *   3. Traza de ciclos de máquina con su palabra de estado, que es lo que
- *      alimenta la fila de LEDs «СОСТОЯНИЕ» y el modo paso por ciclo.
+ * Goals, in this order:
+ *   1. Flag accuracy, including AC and the 8080's quirks relative to the Z80
+ *      (ANA sets AC from (a|b)&8; PSW bits 3 and 5 always read 0 and bit 1
+ *      always reads 1).
+ *   2. T-state accuracy per instruction, including both the taken and the
+ *      not-taken path of conditional jumps, calls and returns.
+ *   3. A machine-cycle trace with its status word, which is what drives the
+ *      «СОСТОЯНИЕ» LED row and the machine-cycle single-step mode.
  *
- * Los diez opcodes no documentados se implementan con la semántica del
- * 8080 de Intel: 08/10/18/20/28/30/38 son NOP, CB es JMP, D9 es RET y
- * DD/ED/FD son CALL.
+ * The ten undocumented opcodes are implemented with Intel 8080 semantics:
+ * 08/10/18/20/28/30/38 are NOP, CB is JMP, D9 is RET and DD/ED/FD are CALL.
  */
 
 #include "umk80/i8080.h"
 
-/* --- utilidades ---------------------------------------------------------- */
+/* --- helpers ---------------------------------------------------------- */
 
 static bool parity8(uint8_t v)
 {
     v ^= (uint8_t)(v >> 4);
     v ^= (uint8_t)(v >> 2);
     v ^= (uint8_t)(v >> 1);
-    return (v & 1u) == 0u;   /* paridad par -> P = 1 */
+    return (v & 1u) == 0u;   /* even parity -> P = 1 */
 }
 
-/* Acarreo que sale del bit `bit` al sumar a + b + cy. */
+/* Carry out of bit `bit` when computing a + b + cy. */
 static bool carry_out(unsigned bit, uint8_t a, uint8_t b, bool cy)
 {
     uint16_t res = (uint16_t)(a + b + (cy ? 1u : 0u));
@@ -40,7 +39,7 @@ static void set_szp(i8080_t *c, uint8_t v)
     if (v & 0x80u)      c->f |= I8080_F_S;
     if (v == 0u)        c->f |= I8080_F_Z;
     if (parity8(v))     c->f |= I8080_F_P;
-    /* Invariante del 8080: bit 1 siempre a 1, bits 3 y 5 siempre a 0. */
+    /* 8080 invariant: bit 1 always 1, bits 3 and 5 always 0. */
     c->f = (uint8_t)((c->f & I8080_F_MASK) | I8080_F_ONE);
 }
 
@@ -54,7 +53,7 @@ static bool get_flag(const i8080_t *c, uint8_t mask)
     return (c->f & mask) != 0u;
 }
 
-/* --- acceso al bus, con registro del ciclo de máquina --------------------- */
+/* --- bus access, recording the machine cycle ------------------------------ */
 
 static void mc_log(i8080_t *c, uint8_t status, uint16_t addr, uint8_t data)
 {
@@ -79,7 +78,7 @@ static void bus_wr(i8080_t *c, const i8080_bus_t *b, uint16_t a, uint8_t v, uint
     mc_log(c, st, a, v);
 }
 
-/* En el 8080 el número de puerto sale duplicado en A0-A7 y en A8-A15. */
+/* On the 8080 the port number appears on both A0-A7 and A8-A15. */
 static uint8_t bus_in(i8080_t *c, const i8080_bus_t *b, uint8_t port)
 {
     uint8_t v = b->in(b->ud, port);
@@ -120,7 +119,7 @@ static uint16_t pop16(i8080_t *c, const i8080_bus_t *b)
     return (uint16_t)((hi << 8) | lo);
 }
 
-/* --- pares de registros --------------------------------------------------- */
+/* --- register pairs --------------------------------------------------- */
 
 static uint16_t get_bc(const i8080_t *c) { return (uint16_t)((c->b << 8) | c->c); }
 static uint16_t get_de(const i8080_t *c) { return (uint16_t)((c->d << 8) | c->e); }
@@ -129,7 +128,7 @@ static void set_bc(i8080_t *c, uint16_t v) { c->b = (uint8_t)(v >> 8); c->c = (u
 static void set_de(i8080_t *c, uint16_t v) { c->d = (uint8_t)(v >> 8); c->e = (uint8_t)v; }
 static void set_hl(i8080_t *c, uint16_t v) { c->h = (uint8_t)(v >> 8); c->l = (uint8_t)v; }
 
-/* Registro por índice: 0=B 1=C 2=D 3=E 4=H 5=L 6=M 7=A */
+/* Register by index: 0=B 1=C 2=D 3=E 4=H 5=L 6=M 7=A */
 static uint8_t reg_get(i8080_t *c, const i8080_bus_t *b, unsigned r)
 {
     switch (r) {
@@ -158,7 +157,7 @@ static void reg_set(i8080_t *c, const i8080_bus_t *b, unsigned r, uint8_t v)
     }
 }
 
-/* --- unidad aritmético-lógica --------------------------------------------- */
+/* --- arithmetic/logic unit --------------------------------------------- */
 
 static void alu_add(i8080_t *c, uint8_t val, bool cy)
 {
@@ -169,8 +168,8 @@ static void alu_add(i8080_t *c, uint8_t val, bool cy)
     c->a = res;
 }
 
-/* La resta del 8080 es a + ~val + !cy, con el acarreo final invertido.
- * De ahí sale, sin casos especiales, el AC que espera 8080EXM. */
+/* 8080 subtraction is a + ~val + !cy with the final carry inverted. That
+ * yields, with no special cases, the AC that 8080EXM expects. */
 static void alu_sub(i8080_t *c, uint8_t val, bool cy)
 {
     alu_add(c, (uint8_t)~val, !cy);
@@ -186,8 +185,8 @@ static void alu_cmp(i8080_t *c, uint8_t val)
 
 static void alu_ana(i8080_t *c, uint8_t val)
 {
-    /* Peculiaridad del 8080: AC sale de (A | operando) bit 3.
-     * El 8085 y el Z80 hacen otra cosa. */
+    /* 8080 quirk: AC comes from bit 3 of (A | operand).
+     * The 8085 and the Z80 do something else. */
     bool ac = ((c->a | val) & 0x08u) != 0u;
     c->a = (uint8_t)(c->a & val);
     set_szp(c, c->a);
@@ -262,11 +261,11 @@ static void alu_daa(i8080_t *c)
         corr = (uint8_t)(corr + 0x60u);
         cy = true;
     }
-    alu_add(c, corr, false);   /* fija AC a partir de la nibble baja */
+    alu_add(c, corr, false);   /* sets AC from the low nibble */
     set_flag(c, I8080_F_C, cy);
 }
 
-/* --- condiciones ---------------------------------------------------------- */
+/* --- conditions ---------------------------------------------------------- */
 
 static bool cond_true(const i8080_t *c, unsigned cc)
 {
@@ -282,8 +281,8 @@ static bool cond_true(const i8080_t *c, unsigned cc)
     }
 }
 
-/* --- tabla de ciclos T ---------------------------------------------------- */
-/* Para saltos, llamadas y retornos condicionales figura el caso NO tomado. */
+/* --- T-state table ---------------------------------------------------- */
+/* For conditional jumps, calls and returns this is the NOT-taken case. */
 static const uint8_t CYCLES[256] = {
 /*        0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F */
 /* 0 */   4, 10,  7,  5,  5,  5,  7,  4,  4, 10,  7,  5,  5,  5,  7,  4,
@@ -369,7 +368,7 @@ void i8080_interrupt(i8080_t *cpu, uint8_t vector)
     cpu->int_vector = vector;
 }
 
-/* --- ejecución ------------------------------------------------------------ */
+/* --- execution ------------------------------------------------------------ */
 
 static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
 {
@@ -377,7 +376,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
 
     switch (op) {
 
-    /* --- transferencia de 16 bits --- */
+    /* --- 16-bit transfers --- */
     case 0x01: set_bc(c, fetch16(c, b)); break;              /* LXI B  */
     case 0x11: set_de(c, fetch16(c, b)); break;              /* LXI D  */
     case 0x21: set_hl(c, fetch16(c, b)); break;              /* LXI H  */
@@ -399,7 +398,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
     case 0x3A: { uint16_t a = fetch16(c, b);                 /* LDA  */
                  c->a = bus_rd(c, b, a, I8080_CYC_MEMR); } break;
 
-    /* --- incrementos de 16 bits --- */
+    /* --- 16-bit increments --- */
     case 0x03: set_bc(c, (uint16_t)(get_bc(c) + 1u)); break;
     case 0x13: set_de(c, (uint16_t)(get_de(c) + 1u)); break;
     case 0x23: set_hl(c, (uint16_t)(get_hl(c) + 1u)); break;
@@ -414,7 +413,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
     case 0x29: alu_dad(c, get_hl(c)); break;
     case 0x39: alu_dad(c, c->sp); break;
 
-    /* --- rotaciones --- */
+    /* --- rotates --- */
     case 0x07: { bool cy = (c->a & 0x80u) != 0u;             /* RLC */
                  c->a = (uint8_t)((c->a << 1) | (cy ? 1u : 0u));
                  set_flag(c, I8080_F_C, cy); } break;
@@ -430,7 +429,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
                  c->a = (uint8_t)((c->a >> 1) | (old ? 0x80u : 0u));
                  set_flag(c, I8080_F_C, cy); } break;
 
-    /* --- varios de un byte --- */
+    /* --- assorted single-byte --- */
     case 0x27: alu_daa(c); break;                            /* DAA */
     case 0x2F: c->a = (uint8_t)~c->a; break;                 /* CMA */
     case 0x37: set_flag(c, I8080_F_C, true); break;          /* STC */
@@ -444,7 +443,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
     case 0xF3: c->inte = false; c->int_delay = 0; break;     /* DI */
     case 0xFB: c->inte = true;  c->int_delay = 1; break;     /* EI */
 
-    /* --- pila --- */
+    /* --- stack --- */
     case 0xC1: set_bc(c, pop16(c, b)); break;
     case 0xD1: set_de(c, pop16(c, b)); break;
     case 0xE1: set_hl(c, pop16(c, b)); break;
@@ -457,7 +456,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
     case 0xF5: push16(c, b, (uint16_t)((c->a << 8) |
                      ((c->f & I8080_F_MASK) | I8080_F_ONE))); break;
 
-    /* --- entrada/salida --- */
+    /* --- input/output --- */
     case 0xDB: c->a = bus_in(c, b, fetch8(c, b)); break;     /* IN  */
     case 0xD3: { uint8_t p = fetch8(c, b);                   /* OUT */
                  bus_out(c, b, p, c->a); } break;
@@ -465,22 +464,22 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
     /* --- HLT --- */
     case 0x76: c->halted = true; break;
 
-    /* --- saltos, llamadas y retornos incondicionales --- */
-    case 0xC3: case 0xCB: c->pc = fetch16(c, b); break;      /* JMP (CB no doc.) */
-    case 0xCD: case 0xDD: case 0xED: case 0xFD: {            /* CALL (3 no doc.) */
+    /* --- unconditional jumps, calls and returns --- */
+    case 0xC3: case 0xCB: c->pc = fetch16(c, b); break;      /* JMP (CB undocumented) */
+    case 0xCD: case 0xDD: case 0xED: case 0xFD: {            /* CALL (3 undocumented) */
                  uint16_t a = fetch16(c, b);
                  push16(c, b, c->pc);
                  c->pc = a; } break;
-    case 0xC9: case 0xD9: c->pc = pop16(c, b); break;        /* RET (D9 no doc.) */
+    case 0xC9: case 0xD9: c->pc = pop16(c, b); break;        /* RET (D9 undocumented) */
 
-    /* --- NOP y sus siete variantes no documentadas --- */
+    /* --- NOP and its seven undocumented variants --- */
     case 0x00: case 0x08: case 0x10: case 0x18:
     case 0x20: case 0x28: case 0x30: case 0x38:
         break;
 
     default:
-        /* --- bloques regulares --- */
-        if (op >= 0x40u && op <= 0x7Fu) {                     /* MOV (0x76 ya tratado) */
+        /* --- regular blocks --- */
+        if (op >= 0x40u && op <= 0x7Fu) {                     /* MOV (0x76 handled above) */
             unsigned dst = (unsigned)((op >> 3) & 7u);
             unsigned src = (unsigned)(op & 7u);
             reg_set(c, b, dst, reg_get(c, b, src));
@@ -494,7 +493,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
         } else if ((op & 0xC7u) == 0x06u) {                   /* MVI r */
             uint8_t imm = fetch8(c, b);
             reg_set(c, b, (unsigned)((op >> 3) & 7u), imm);
-        } else if ((op & 0xC7u) == 0xC6u) {                   /* ALU inmediato */
+        } else if ((op & 0xC7u) == 0xC6u) {                   /* ALU immediate */
             alu_op(c, (unsigned)((op >> 3) & 7u), fetch8(c, b));
         } else if ((op & 0xC7u) == 0xC7u) {                   /* RST n */
             push16(c, b, c->pc);
@@ -502,7 +501,7 @@ static unsigned execute(i8080_t *c, const i8080_bus_t *b, uint8_t op)
         } else if ((op & 0xC7u) == 0xC2u) {                   /* Jcc */
             uint16_t a = fetch16(c, b);
             if (cond_true(c, (unsigned)((op >> 3) & 7u))) c->pc = a;
-            /* Jcc consume 10 ciclos T se tome o no. */
+            /* Jcc costs 10 T states whether taken or not. */
         } else if ((op & 0xC7u) == 0xC4u) {                   /* Ccc */
             uint16_t a = fetch16(c, b);
             if (cond_true(c, (unsigned)((op >> 3) & 7u))) {
@@ -528,15 +527,15 @@ unsigned i8080_step(i8080_t *cpu, const i8080_bus_t *bus)
 
     cpu->mc_count = 0;
 
-    /* Atender interrupción: sólo si INTE está activo y ya pasó la
-     * instrucción de gracia que impone EI. El biestable se limpia al
-     * reconocerla, igual que en el 8080 real. */
+    /* Service an interrupt only if INTE is set and the grace instruction
+     * imposed by EI has already gone by. The flip-flop is cleared on
+     * acknowledgement, exactly as on a real 8080. */
     if (cpu->int_pending && cpu->inte && cpu->int_delay == 0u) {
         uint8_t vec = cpu->int_vector;
         cpu->int_pending = false;
         cpu->inte = false;
 
-        /* Ciclo INTA: la palabra de estado depende de si estábamos en HLT. */
+        /* INTA cycle: the status word depends on whether we were in HLT. */
         mc_log(cpu, cpu->halted ? I8080_CYC_INTA_HALT : I8080_CYC_INTA,
                cpu->pc, vec);
         cpu->halted = false;
@@ -546,7 +545,7 @@ unsigned i8080_step(i8080_t *cpu, const i8080_bus_t *bus)
         return cyc;
     }
 
-    /* En HLT la CPU sigue emitiendo ciclos de reconocimiento de parada. */
+    /* While halted the CPU keeps emitting halt-acknowledge cycles. */
     if (cpu->halted) {
         mc_log(cpu, I8080_CYC_HALTA, cpu->pc, 0x00u);
         cpu->cycles += 4u;
@@ -560,9 +559,9 @@ unsigned i8080_step(i8080_t *cpu, const i8080_bus_t *bus)
         cpu->pc = (uint16_t)(cpu->pc + 1u);
         cyc = execute(cpu, bus, op);
 
-        /* Consumir la instrucción de gracia de EI — pero sólo si esta
-         * instrucción no acaba de armarla ella misma (EI), y sin resucitar
-         * el retardo que DI haya anulado. */
+        /* Consume EI's grace instruction — but only if this instruction is
+         * not the one that just armed it (EI), and without reviving a delay
+         * that DI has cancelled. */
         if (delay_before > 0u && cpu->int_delay == delay_before) {
             cpu->int_delay--;
         }
