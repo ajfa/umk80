@@ -56,43 +56,87 @@ verdad del УМК. Tu encargo ya lo advertía y estoy de acuerdo.
 
 ---
 
-## 3. [A] Orientación de los seis dígitos — la incógnita nº 1
+## 3. ~~[A] Orientación de los seis dígitos~~ — **RESUELTO 2026-08-11**
 
-**El conflicto.** Tu encargo (y eax.me) dicen: `0b000001` = indicador de más
-a la izquierda. Pero el lazo de regeneración del monitor (PDF p. 72) arranca
-en `NMBIND = 0b00100000` (bit 5), rota **a la derecha** hasta el bit 0, y
-recorre el búfer `BUFCD` **hacia adelante** (`INX H`). Luego:
+**Resultado: `OUT 0F8H` bit 0 = indicador de más a la izquierda.** Coincide
+con lo que decía el encargo. Queda cerrado; se deja escrito el razonamiento
+porque el camino no era obvio.
+
+**Punto de partida (aparente contradicción).** El lazo de regeneración
+(PDF p. 72) arranca en `NMBIND = 0b00100000` (bit 5), rota **a la derecha**
+hasta el bit 0, y recorre `BUFCD` **hacia adelante** (`INX H`), luego:
 
 ```
-0FFA ↔ bit5      0FFB ↔ bit4      0FFC ↔ bit3
-0FFD ↔ bit2      0FFE ↔ bit1      0FFF ↔ bit0
+0FFA ↔ bit5   0FFB ↔ bit4   0FFC ↔ bit3   0FFD ↔ bit2   0FFE ↔ bit1   0FFF ↔ bit0
 ```
 
-Si el bit 0 fuera el dígito de más a la izquierda, el monitor estaría
-escribiendo su búfer de derecha a izquierda, cosa rarísima para un display
-que muestra `ДДДД ДД` (dirección de 4 dígitos a la izquierda, dato de 2 a la
-derecha). Lo natural es lo contrario: **bit 5 = el de más a la izquierda**.
+Eso, por sí solo, no dice qué extremo del panel es cuál.
 
-**Por qué importa.** Tu criterio de aceptación 3 dice que la versión
-corregida debe mostrar `HELLO`. Ese programa arranca con `B = 0x01` y rota a
-la **izquierda** (`RLC`), leyendo `H,E,L,L,O` en orden ascendente desde
-`081B`. Con la convención de tu encargo (bit0 = izquierda) sale `HELLO`
-leyéndose de izquierda a derecha. Con la convención que se deduce del
-monitor, saldría **espejado**: `_OLLEH`. Las dos convenciones no pueden ser
-ciertas a la vez.
+**Prueba decisiva** — rutina `CO` (`0332`) y su lazo de desplazamiento
+`RALLP` (`0344`), PDF pp. 75–76:
 
-**Cómo lo resuelvo.** No por deducción: por consistencia forzada.
-1. Transcribo la rutina que formatea la dirección de 4 dígitos y el dato de
-   2 (`CDADR`/`COBYTE`, en torno a `0280–02B0`) y miro **en qué orden llena
-   `BUFCD`**. Eso fija la orientación sin ambigüedad, porque el formato de
-   pantalla `АДРЕС ДАННЫЕ` está fotografiado en el ПС (Рис. 2, p. 17) y
-   descrito en el Руководство оператора.
-2. Contrasto con la foto del panel del artículo de dlinyj en Habr.
+```
+CO:  ; ... ЗАПИСЬ ПОЛУЧЕННОГО КОДА В БУФЕР ВЫВОДА. СДВИГ ТЕК. СОСТОЯНИЯ
+     ;     ИНДИКАТОРОВ НА 1 ШАГ ВЛЕВО ...
+     ; <C> — КОД СИМВОЛА ASCII
+     ; <B> — ТИП ДАННЫХ, 0-BYTE, 1-ADDRESS
 
-**Mientras tanto.** El núcleo lleva la orientación como **parámetro
-explícito** (`umk_display_set_digit_order`), y las dos pruebas del criterio 3
-se ejecutan con la orientación que resulte de (1). Si sale la contraria a la
-de tu encargo, te lo digo antes de tocar los tests, no después.
+     ; СДВИГ ЕЛЕМЕНТОВ БУФЕРА ВЫВОДА НА 1 ШАГ ВЛЕВО В АДРЕСНОЙ ИЛИ
+     ; БАЙТОВОЙ ЕГО ЧАСТИ. ЗП. В ПОЛЕ МЛ. ИНДИК-РА КОДА НОВОГО СИМВОЛА
+0344 21FA0F   LXI  H,BUFCD
+0347 1602     MVI  D,2
+0349 78       MOV  A,B
+034A B7       ORA  A
+034B CA5203   JZ   RALLP
+034E 23       INX  H          ; БУФЕР ДАННЫХ-ADDRES
+034F 23       INX  H
+0350 1604     MVI  D,4        ; 4 СДВИГА
+RALLP:                        ; ЦИКЛ СДВИГА И ПЕРЕЗП. ЕЛЕМЕНТОВ БУФЕРА
+0352 7E       MOV  A,M
+0353 73       MOV  M,E
+0354 5F       MOV  E,A
+0355 23       INX  H
+0356 15       DCR  D
+0357 C25203   JNZ  RALLP
+035A C9       RET
+```
+
+El carácter nuevo se escribe en el **«мл. индикатор»** (índice menor:
+`BUFCD+0` para datos, `BUFCD+2` para dirección) y el contenido previo se
+propaga hacia **índices mayores** — y el propio monitor llama a eso
+**«сдвиг на 1 шаг влево»**. Por tanto **índice mayor = más a la izquierda**,
+y con el mapeo del lazo de regeneración: **`BUFCD+5` ↔ bit 0 = el dígito de
+más a la izquierda**.
+
+**Corroboración independiente** — `ERSBT`/`ERSADR` (`02B9`/`02C3`, PDF p. 71):
+
+```
+ERSBT:   ; ГАШЕНИЕ ИНДИКАЦИИ ДАННЫХ
+02BC 22FA0F   SHLD BUFCD        ; apaga BUFCD+0, +1
+ERSADR:  ; ГАШЕНИЕ АДРЕСНОЙ ИНДИКАЦИИ
+02C6 22FC0F   SHLD BUFCD+2      ; apaga BUFCD+2, +3
+02C9 22FE0F   SHLD BUFCD+4      ;   y   BUFCD+4, +5
+```
+
+→ `BUFCD+0,+1` = ДАННЫЕ, `BUFCD+2..+5` = АДРЕС. Con la orientación
+deducida, el panel de izquierda a derecha queda:
+
+```
+  bit0   bit1   bit2   bit3  │  bit4   bit5
+ BUF+5  BUF+4  BUF+3  BUF+2  │ BUF+1  BUF+0
+ └────────── АДРЕС ─────────┘ └── ДАННЫЕ ──┘
+      (MSD ............ LSD)   (MSD .. LSD)
+```
+
+que es exactamente la disposición `АДРЕС | ДАННЫЕ` del Рис. 2 del ПС (p. 17),
+con los dígitos hexadecimales en el orden correcto de lectura. Tres hechos
+independientes encajan; se da por cerrado.
+
+**Consecuencia para el criterio de aceptación 3.** El programa «HELLO» de tu
+encargo arranca con `B = 0x01` y rota a la izquierda (`RLC`), leyendo
+`H,E,L,L,O` en orden ascendente: sale `HELLO` legible de izquierda a derecha.
+La orientación queda de todos modos como parámetro del núcleo
+(`umk_display_set_digit_order`), con `UMK_DIGIT_BIT0_LEFT` por defecto.
 
 ---
 
