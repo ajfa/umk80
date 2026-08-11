@@ -31,7 +31,29 @@ CORE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CORE_SRC))
 .PHONY: all test test-exm clean
 
 all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE) \
-     $(BUILD)/umkrom$(EXE) $(BUILD)/criterio2$(EXE) rom/monitor.bin
+     $(BUILD)/umkrom$(EXE) $(BUILD)/criterio2$(EXE) rom/monitor.bin \
+     $(BUILD)/umk80$(EXE)
+
+# El frontend hace aritmética de píxeles a mansalva; -Wconversion ahí sólo
+# genera ruido. El núcleo sí se compila con él.
+FEFLAGS := $(CSTD) -Wall -Wextra -Wshadow $(OPT) -Icore/include -Ifrontend
+
+ifeq ($(OS),Windows_NT)
+  PLATFORM_SRC := frontend/platform_win32.c
+  PLATFORM_LIB := -lgdi32 -luser32
+else
+  PLATFORM_SRC := frontend/platform_sdl2.c
+  PLATFORM_LIB := $(shell sdl2-config --libs 2>/dev/null || echo -lSDL2)
+  FEFLAGS      += $(shell sdl2-config --cflags 2>/dev/null)
+endif
+
+$(BUILD)/umk80$(EXE): frontend/main.c frontend/panel.c $(PLATFORM_SRC) $(CORE_OBJ)
+	$(call MKDIR,$(BUILD))
+	$(CC) $(FEFLAGS) $^ -o $@ $(PLATFORM_LIB)
+
+.PHONY: run
+run: $(BUILD)/umk80$(EXE) rom/monitor.bin
+	$(BUILD)/umk80$(EXE) --rom rom/monitor.bin
 
 $(BUILD)/%.o: %.c
 	$(call MKDIR,$(dir $@))
