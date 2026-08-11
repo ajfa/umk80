@@ -33,7 +33,7 @@ CORE_OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CORE_SRC))
 all: $(BUILD)/cpu_suite$(EXE) $(BUILD)/ghosting$(EXE) \
      $(BUILD)/umkrom$(EXE) $(BUILD)/umkasm$(EXE) $(BUILD)/umkdis$(EXE) \
      $(BUILD)/criterio2$(EXE) $(BUILD)/criterio4$(EXE) \
-     rom/monitor.bin $(BUILD)/umk80$(EXE)
+     rom/monitor.bin $(BUILD)/umk80$(EXE) $(BUILD)/umkcli$(EXE)
 
 # El frontend hace aritmética de píxeles a mansalva; -Wconversion ahí sólo
 # genera ruido. El núcleo sí se compila con él.
@@ -56,6 +56,16 @@ $(BUILD)/umk80$(EXE): frontend/main.c frontend/panel.c $(PLATFORM_SRC) $(CORE_OB
 run: $(BUILD)/umk80$(EXE) rom/monitor.bin
 	$(BUILD)/umk80$(EXE) --rom rom/monitor.bin
 
+# Un script autónomo por sistema, nunca uno con argumento para elegir.
+.PHONY: pack
+ifeq ($(OS),Windows_NT)
+pack: all
+	tools\pack.cmd
+else
+pack: all
+	sh tools/pack.sh
+endif
+
 $(BUILD)/%.o: %.c
 	$(call MKDIR,$(dir $@))
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -76,9 +86,9 @@ $(BUILD)/umkasm$(EXE): tools/umkasm.c
 	$(call MKDIR,$(BUILD))
 	$(CC) $(CSTD) $(WARN) $(OPT) $< -o $@
 
-$(BUILD)/umkdis$(EXE): tools/umkdis.c $(BUILD)/core/src/i8080.o
+$(BUILD)/umkdis$(EXE): tools/umkdis.c $(BUILD)/disasm.o $(BUILD)/core/src/i8080.o
 	$(call MKDIR,$(BUILD))
-	$(CC) $(CSTD) $(WARN) $(OPT) -Icore/include $< $(BUILD)/core/src/i8080.o -o $@
+	$(CC) $(CSTD) $(WARN) $(OPT) -Icore/include -Itools $^ -o $@
 
 # Vía 1: la imagen sale de la columna OBJ del listado. De paso se extrae el
 # fuente, para que las dos vías partan del mismo fichero y no se desincronicen.
@@ -98,11 +108,20 @@ $(BUILD)/criterio4$(EXE): tests/step/criterio4.c $(CORE_OBJ)
 verify-rom: rom/monitor.asm rom/monitor.bin $(BUILD)/umkasm$(EXE)
 	$(BUILD)/umkasm$(EXE) rom/monitor.asm $(BUILD)/monitor_asm.bin --verify rom/monitor.bin
 
+$(BUILD)/disasm.o: tools/disasm.c tools/disasm.h
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CSTD) $(WARN) $(OPT) -Icore/include -Itools -c tools/disasm.c -o $@
+
+$(BUILD)/umkcli$(EXE): cli/umkcli.c $(BUILD)/disasm.o $(CORE_OBJ)
+	$(call MKDIR,$(BUILD))
+	$(CC) $(CSTD) -Wall -Wextra -Wshadow $(OPT) -Icore/include -Itools $^ -o $@
+
 test: all verify-rom
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites --quick
 	$(BUILD)/ghosting$(EXE)
 	$(BUILD)/criterio2$(EXE) rom/monitor.bin
 	$(BUILD)/criterio4$(EXE)
+	$(BUILD)/umkcli$(EXE) --rom rom/monitor.bin --script tests/cli/humo.txt
 
 test-exm: $(BUILD)/cpu_suite$(EXE)
 	$(BUILD)/cpu_suite$(EXE) tests/cpu/suites
