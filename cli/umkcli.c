@@ -16,6 +16,7 @@
 
 #include "umk80/umk80.h"
 #include "disasm.h"
+#include "console.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -524,6 +525,7 @@ int main(int argc, char **argv)
     int ncmds = 0, i, interactive = 1;
     const char *script = NULL;
 
+    console_utf8();
     umk_init(&m, UMK_REV2);
 
     for (i = 1; i < argc; i++) {
@@ -570,3 +572,4 @@ int main(int argc, char **argv)
     }
     return 0;
 }
+

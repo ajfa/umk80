@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "console.h"
 
 #define ROM_SIZE 2048u
 
@@ -64,6 +65,10 @@ int main(int argc, char **argv)
     unsigned i, run_start;
     int in_gap, a;
     const char *asmpath = NULL;
+
+    console_utf8();
+
+    
 
     for (a = 3; a < argc; a++)
         if (strcmp(argv[a], "--asm") == 0 && a + 1 < argc) asmpath = argv[++a];
@@ -170,3 +175,5 @@ int main(int argc, char **argv)
     if (errors) printf("HAY %d PROBLEMAS DE TRANSCRIPCIÓN\n", errors);
     return errors ? 1 : 0;
 }
+
+

@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "console.h"
 
 #define MAX_LINES 6000
 #define MAX_LINE   512
@@ -512,6 +513,10 @@ int main(int argc, char **argv)
     const char *src = NULL, *dst = NULL, *verify = NULL;
     int pass, i;
 
+    console_utf8();
+
+    
+
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) image_size = strtol(argv[++i], NULL, 0);
         else if (strcmp(argv[i], "--verify") == 0 && i + 1 < argc) verify = argv[++i];
@@ -595,3 +600,5 @@ int main(int argc, char **argv)
     }
     return 0;
 }
+
+

@@ -30,6 +30,11 @@ static int map_sdl(SDL_Keycode k)
     }
 }
 
+void plat_init(void)
+{
+    /* En POSIX la consola ya es UTF-8; no hay nada que preparar. */
+}
+
 int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
 {
     g_lw = lw; g_lh = lh;

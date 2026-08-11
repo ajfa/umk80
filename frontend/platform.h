@@ -36,9 +36,15 @@ typedef struct {
     int x, y;       /* EV_MOUSE*, en coordenadas lógicas del panel */
 } plat_event_t;
 
-/* Abre la ventana. `lw`/`lh` es el tamaño lógico del panel; el escalado a la
- * ventana real lo hace la plataforma, y plat_poll ya devuelve las
- * coordenadas del ratón convertidas a ese espacio lógico. */
+/* Prepara la consola para que el texto salga bien ANTES de abrir la ventana.
+ * En Windows pone la página de códigos de salida en UTF-8, porque cmd.exe
+ * arranca en la 850 o la 437 y destroza el cirílico y los acentos. En POSIX
+ * no hace nada. Se llama al principio de main. */
+void plat_init(void);
+
+/* Abre la ventana. `title` va en UTF-8. `lw`/`lh` es el tamaño lógico del
+ * panel; el escalado a la ventana real lo hace la plataforma, y plat_poll ya
+ * devuelve las coordenadas del ratón convertidas a ese espacio lógico. */
 int  plat_open(const char *title, int lw, int lh, int scale_num, int scale_den);
 void plat_close(void);
 

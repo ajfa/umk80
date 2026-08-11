@@ -51,6 +51,13 @@ static void to_logical(int wx, int wy, int *lx, int *ly)
     *ly = (g_ch > 0) ? (wy * g_lh) / g_ch : 0;
 }
 
+void plat_init(void)
+{
+    /* cmd.exe arranca en la página de códigos 850 (o la 437), en la que los
+     * bytes UTF-8 salen como galimatías. Ver la nota del README. */
+    SetConsoleOutputCP(CP_UTF8);
+}
+
 static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
@@ -97,33 +104,44 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         }
 
         default:
-            return DefWindowProcA(h, msg, wp, lp);
+            return DefWindowProcW(h, msg, wp, lp);
     }
 }
 
 int plat_open(const char *title, int lw, int lh, int scale_num, int scale_den)
 {
-    WNDCLASSA wc;
+    WNDCLASSW wc;
     RECT r;
     int ww, wh;
+    wchar_t wtitle[256];
 
     g_lw = lw; g_lh = lh;
     ww = lw * scale_num / scale_den;
     wh = lh * scale_num / scale_den;
     g_cw = ww; g_ch = wh;
 
+    /* El título lleva cirílico. Con la API -A, Windows interpretaría los
+     * bytes UTF-8 en la página ANSI del sistema y saldría «Ð£ÐœÐš-80». Hay
+     * que pasar por UTF-16 y usar la API ancha de punta a punta. */
+    if (MultiByteToWideChar(CP_UTF8, 0, title, -1, wtitle,
+                            (int)(sizeof wtitle / sizeof wtitle[0])) == 0) {
+        wtitle[0] = L'U'; wtitle[1] = L'M'; wtitle[2] = L'K'; wtitle[3] = L'\0';
+    }
+
     ZeroMemory(&wc, sizeof wc);
     wc.lpfnWndProc   = wndproc;
-    wc.hInstance     = GetModuleHandleA(NULL);
-    wc.hCursor       = LoadCursorA(NULL, IDC_ARROW);
-    wc.lpszClassName = "UMK80Panel";
+    wc.hInstance     = GetModuleHandleW(NULL);
+    /* IDC_ARROW no es una cadena sino un átomo entero disfrazado de puntero;
+     * con la API ancha hay que presentarlo como LPCWSTR. */
+    wc.hCursor       = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW);
+    wc.lpszClassName = L"UMK80Panel";
     wc.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-    if (!RegisterClassA(&wc)) return 0;
+    if (!RegisterClassW(&wc)) return 0;
 
     r.left = 0; r.top = 0; r.right = ww; r.bottom = wh;
     AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
 
-    g_hwnd = CreateWindowA("UMK80Panel", title, WS_OVERLAPPEDWINDOW,
+    g_hwnd = CreateWindowW(L"UMK80Panel", wtitle, WS_OVERLAPPEDWINDOW,
                            CW_USEDEFAULT, CW_USEDEFAULT,
                            r.right - r.left, r.bottom - r.top,
                            NULL, NULL, wc.hInstance, NULL);

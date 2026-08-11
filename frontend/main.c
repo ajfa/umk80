@@ -181,6 +181,8 @@ int main(int argc, char **argv)
     int running = 1;
     int i, n;
 
+    plat_init();          /* antes de imprimir nada: arregla la consola */
+
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--rom") == 0 && i + 1 < argc) rompath = argv[++i];
         else if (strcmp(argv[i], "--shot") == 0 && i + 1 < argc) shot = argv[++i];

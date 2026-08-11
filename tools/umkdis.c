@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "console.h"
 
 int main(int argc, char **argv)
 {
@@ -29,6 +30,10 @@ int main(int argc, char **argv)
     size_t n;
     FILE *f;
     int i;
+
+    console_utf8();
+
+    
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--org") == 0 && i + 1 < argc)
@@ -79,3 +84,5 @@ int main(int argc, char **argv)
     }
     return 0;
 }
+
+
