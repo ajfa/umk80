@@ -10,7 +10,7 @@ jobs:
     name: Build and run the test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The core, the tools and the tests need nothing but a C11 compiler.
       # SDL2 is here only because the default target also builds the graphical
